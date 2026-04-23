@@ -63,21 +63,25 @@ pnpm dev
 3. 切到"今日"页，能看到新 todo，可以勾选完成。
 4. 触发复盘（带 CRON_SECRET）：
    ```bash
-   curl "http://localhost:3000/api/cron/digest?secret=$CRON_SECRET&force=1"
+   curl "http://localhost:3000/api/cron/digest?secret=$CRON_SECRET"
    ```
    到"复盘"页看今天的卡片。
 5. 触发早报：
    ```bash
-   curl "http://localhost:3000/api/cron/morning?secret=$CRON_SECRET&force=1"
+   curl "http://localhost:3000/api/cron/morning?secret=$CRON_SECRET"
    ```
    查收邮箱。
 
 ## 定时任务部署
 
-生产环境有两种方案：
+`vercel.json` 里配了两个每日 cron（Vercel Hobby 档只支持每日频次）：
 
-- **Vercel Cron**（推荐，已内置在 `vercel.json`）：每小时分别敲 `/api/cron/digest` 和 `/api/cron/morning`，任务内部按用户的 `digestHour` + 时区决定要不要真的执行。Vercel 会自动把 `Authorization: Bearer $CRON_SECRET` 加到请求头上。
-- **Upstash QStash**：免费 500 次/天，schedule 指向同样的 URL，头里带 `Authorization: Bearer $CRON_SECRET` 即可。适合 Hobby 档触达 cron 限制后迁移。
+- `/api/cron/digest` 在 UTC 14:07（北京时间 22:07）执行，生成当日复盘
+- `/api/cron/morning` 在 UTC 00:03（北京时间 08:03）执行，发送次日早报
+
+Vercel 会自动把 `Authorization: Bearer $CRON_SECRET` 加到请求头，代码里一行校验就鉴权好了。
+
+想要"每人自选时间 + 多时区精准投递"需要 Vercel Pro + 把 schedule 改回 `3 * * * *`；或者换 [Upstash QStash](https://upstash.com/docs/qstash) 做外部小时级调度。
 
 完整部署步骤见 **[DEPLOY.md](./DEPLOY.md)**。
 

@@ -19,8 +19,6 @@ export const users = pgTable("users", {
   image: text("image"),
   emailVerified: timestamp("email_verified", { withTimezone: true }),
   timezone: text("timezone").notNull().default("Asia/Shanghai"),
-  digestHour: integer("digest_hour").notNull().default(22),
-  morningHour: integer("morning_hour").notNull().default(8),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -17,7 +17,7 @@ const TZ_OPTIONS = [
 export function SettingsForm({
   initial,
 }: {
-  initial: { name: string; timezone: string; digestHour: number; morningHour: number };
+  initial: { name: string; timezone: string };
 }) {
   const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -32,8 +32,6 @@ export function SettingsForm({
       body: JSON.stringify({
         name: form.name,
         timezone: form.timezone,
-        digestHour: Number(form.digestHour),
-        morningHour: Number(form.morningHour),
       }),
     });
     setSaving(false);
@@ -69,20 +67,6 @@ export function SettingsForm({
         </select>
       </Field>
 
-      <Field label="每晚复盘时间">
-        <HourPicker
-          value={form.digestHour}
-          onChange={(h) => setForm({ ...form, digestHour: h })}
-        />
-      </Field>
-
-      <Field label="次日早报时间">
-        <HourPicker
-          value={form.morningHour}
-          onChange={(h) => setForm({ ...form, morningHour: h })}
-        />
-      </Field>
-
       <button
         onClick={save}
         disabled={saving}
@@ -100,21 +84,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <div className="mb-1.5 text-xs text-mute">{label}</div>
       {children}
     </label>
-  );
-}
-
-function HourPicker({ value, onChange }: { value: number; onChange: (h: number) => void }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className="w-full rounded-lg border border-border bg-bg px-3 py-2 outline-none focus:border-accent"
-    >
-      {Array.from({ length: 24 }, (_, h) => (
-        <option key={h} value={h}>
-          {String(h).padStart(2, "0")}:00
-        </option>
-      ))}
-    </select>
   );
 }

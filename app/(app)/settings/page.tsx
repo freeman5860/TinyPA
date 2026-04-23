@@ -22,10 +22,13 @@ export default async function SettingsPage() {
         initial={{
           name: user?.name ?? "",
           timezone: user?.timezone ?? "Asia/Shanghai",
-          digestHour: user?.digestHour ?? 22,
-          morningHour: user?.morningHour ?? 8,
         }}
       />
+
+      <div className="mt-6 rounded-xl border border-border bg-panel/60 p-4 text-xs text-mute">
+        <div className="mb-1 font-medium text-ink">推送时间</div>
+        每晚 22:07 自动生成复盘，次日 08:03 邮件推送早报（北京时间）。多时区自定义需要升级 Vercel Pro，目前 Hobby 档固定。
+      </div>
 
       <form
         action={async () => {

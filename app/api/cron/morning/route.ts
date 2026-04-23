@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, users } from "@/lib/db";
 import { sendMorningForUser } from "@/lib/jobs/morning";
-import { hourInTz } from "@/lib/time";
 import { eq } from "drizzle-orm";
 
 export const maxDuration = 60;
@@ -19,7 +18,6 @@ export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const url = new URL(req.url);
-  const force = url.searchParams.get("force") === "1";
   const targetUser = url.searchParams.get("user");
 
   const rows = targetUser
@@ -28,11 +26,6 @@ export async function GET(req: NextRequest) {
 
   const results: { userId: string; sent: boolean; reason?: string }[] = [];
   for (const u of rows) {
-    const hour = hourInTz(u.timezone);
-    if (!force && hour !== u.morningHour) {
-      results.push({ userId: u.id, sent: false, reason: `hour_mismatch(${hour})` });
-      continue;
-    }
     try {
       const r = await sendMorningForUser(u.id);
       results.push({ userId: u.id, sent: r.sent, reason: r.reason });

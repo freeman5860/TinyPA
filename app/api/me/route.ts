@@ -6,8 +6,6 @@ import { z } from "zod";
 
 const schema = z.object({
   timezone: z.string().min(1).max(60).optional(),
-  digestHour: z.number().int().min(0).max(23).optional(),
-  morningHour: z.number().int().min(0).max(23).optional(),
   name: z.string().max(60).optional(),
 });
 

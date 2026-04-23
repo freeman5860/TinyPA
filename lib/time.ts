@@ -20,8 +20,3 @@ export function yesterdayIsoDate(timezone: string, d: Date = new Date()) {
   const zoned = toZonedTime(d, timezone);
   return formatISO(addDays(zoned, -1), { representation: "date" });
 }
-
-export function hourInTz(timezone: string, d: Date = new Date()) {
-  const zoned = toZonedTime(d, timezone);
-  return zoned.getHours();
-}
