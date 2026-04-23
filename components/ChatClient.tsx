@@ -1,0 +1,198 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+type Item = {
+  id: string;
+  type: "todo" | "note" | "mood" | "followup";
+  content: string;
+  dueAt: string | null;
+  priority: number;
+  tags: string[];
+};
+
+type Msg = {
+  id: string;
+  rawText: string;
+  createdAt: string;
+  items?: Item[];
+  pending?: boolean;
+  error?: boolean;
+};
+
+const typeLabel: Record<Item["type"], string> = {
+  todo: "待办",
+  note: "笔记",
+  mood: "心情",
+  followup: "待跟进",
+};
+
+const typeColor: Record<Item["type"], string> = {
+  todo: "bg-accent/15 text-accent",
+  note: "bg-emerald-500/15 text-emerald-300",
+  mood: "bg-pink-500/15 text-pink-300",
+  followup: "bg-amber-500/15 text-amber-300",
+};
+
+export default function ChatClient() {
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    fetch("/api/messages")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.messages)) {
+          setMsgs(
+            d.messages.map((m: { id: string; rawText: string; createdAt: string }) => ({
+              id: m.id,
+              rawText: m.rawText,
+              createdAt: m.createdAt,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [msgs.length]);
+
+  async function send() {
+    const t = text.trim();
+    if (!t || sending) return;
+    setSending(true);
+    setText("");
+    const tempId = `tmp-${Date.now()}`;
+    setMsgs((m) => [
+      ...m,
+      { id: tempId, rawText: t, createdAt: new Date().toISOString(), pending: true },
+    ]);
+    try {
+      const res = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: t }),
+      });
+      const d = await res.json();
+      setMsgs((m) =>
+        m.map((x) =>
+          x.id === tempId
+            ? {
+                id: d.message.id,
+                rawText: d.message.rawText,
+                createdAt: d.message.createdAt,
+                items: d.items,
+                error: d.extractError,
+              }
+            : x
+        )
+      );
+    } catch {
+      setMsgs((m) => m.map((x) => (x.id === tempId ? { ...x, pending: false, error: true } : x)));
+    } finally {
+      setSending(false);
+      taRef.current?.focus();
+    }
+  }
+
+  return (
+    <div
+      className="flex flex-col"
+      style={{ height: "calc(100dvh - 56px - env(safe-area-inset-bottom))" }}
+    >
+      <header className="shrink-0 border-b border-border px-4 py-3">
+        <h1 className="text-lg font-semibold">聊天</h1>
+        <p className="text-xs text-mute">说点什么吧，我在听。</p>
+      </header>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="mx-auto flex max-w-xl flex-col gap-4">
+          {msgs.length === 0 && (
+            <div className="mt-16 text-center text-sm text-mute">
+              第一次来？<br />试试"明天下午3点开会要准备财报"或"今天有点累"。
+            </div>
+          )}
+          {msgs.map((m) => (
+            <div key={m.id} className="flex flex-col items-end gap-1.5">
+              <div className="max-w-[85%] rounded-2xl rounded-br-md bg-accent/90 px-4 py-2.5 text-white">
+                <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{m.rawText}</div>
+              </div>
+              {m.pending && (
+                <div className="pr-1 text-xs text-mute">正在整理…</div>
+              )}
+              {m.error && (
+                <div className="pr-1 text-xs text-amber-400">整理失败，已保留原文。</div>
+              )}
+              {m.items && m.items.length > 0 && (
+                <div className="flex max-w-[85%] flex-col gap-1.5">
+                  {m.items.map((it) => (
+                    <div
+                      key={it.id}
+                      className="flex items-start gap-2 rounded-xl rounded-tr-md border border-border bg-panel px-3 py-2 text-sm"
+                    >
+                      <span
+                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] ${typeColor[it.type]}`}
+                      >
+                        {typeLabel[it.type]}
+                      </span>
+                      <div className="flex-1 text-ink">
+                        {it.content}
+                        {it.dueAt && (
+                          <span className="ml-2 text-xs text-mute">
+                            {new Date(it.dueAt).toLocaleString("zh-CN", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {m.items && m.items.length === 0 && !m.pending && !m.error && (
+                <div className="pr-1 text-xs text-mute">已记录。</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="shrink-0 border-t border-border bg-panel px-3 py-2">
+        <div className="mx-auto flex max-w-xl items-end gap-2">
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder="今天想说点什么…"
+            rows={1}
+            className="min-h-[40px] max-h-32 flex-1 resize-none rounded-xl border border-border bg-bg px-3 py-2 text-[15px] outline-none focus:border-accent"
+          />
+          <button
+            onClick={send}
+            disabled={sending || !text.trim()}
+            className="shrink-0 rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+          >
+            发送
+          </button>
+        </div>
+        <div className="mx-auto mt-1 max-w-xl px-1 text-[11px] text-mute">
+          ⌘/Ctrl + Enter 发送
+        </div>
+      </div>
+    </div>
+  );
+}
