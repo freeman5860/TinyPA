@@ -13,7 +13,8 @@ import {
   digestUserPrompt,
 } from "./prompts";
 
-const MODEL = "google/gemma-4-31b-it";
+const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "meta/llama-3.1-8b-instruct";
+const DIGEST_MODEL = process.env.LLM_DIGEST_MODEL ?? "google/gemma-4-31b-it";
 
 function makeClient() {
   const apiKey = process.env.NVIDIA_API_KEY;
@@ -40,7 +41,7 @@ export class GemmaProvider implements LLMProvider {
   ): Promise<void> {
     const client = makeClient();
     const stream = await client.chat.completions.create({
-      model: MODEL,
+      model: EXTRACT_MODEL,
       messages: [
         { role: "system", content: EXTRACT_SYSTEM },
         { role: "user", content: extractUserPrompt(input.text, input.now, input.timezone) },
@@ -144,7 +145,7 @@ export class GemmaProvider implements LLMProvider {
   async digest(input: DigestInput): Promise<DigestResult> {
     const client = makeClient();
     const params = {
-      model: MODEL,
+      model: DIGEST_MODEL,
       messages: [
         { role: "system" as const, content: DIGEST_SYSTEM },
         { role: "user" as const, content: digestUserPrompt(input) },
