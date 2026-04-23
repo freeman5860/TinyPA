@@ -16,6 +16,8 @@ import {
 const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "meta/llama-3.1-8b-instruct";
 const DIGEST_MODEL = process.env.LLM_DIGEST_MODEL ?? "google/gemma-4-31b-it";
 const LLM_BASE_URL = process.env.LLM_BASE_URL ?? "https://integrate.api.nvidia.com/v1";
+const EXTRACT_STREAM = (process.env.LLM_EXTRACT_STREAM ?? "true").toLowerCase() !== "false";
+const EXTRACT_MAX_TOKENS = Number(process.env.LLM_EXTRACT_MAX_TOKENS ?? 1024);
 
 function makeClient() {
   const apiKey = process.env.LLM_API_KEY || process.env.NVIDIA_API_KEY;
@@ -45,21 +47,22 @@ export class GemmaProvider implements LLMProvider {
     console.log("[gemma.extract] start", {
       model: EXTRACT_MODEL,
       baseURL: LLM_BASE_URL,
+      stream: EXTRACT_STREAM,
+      maxTokens: EXTRACT_MAX_TOKENS,
       inputLen: input.text.length,
     });
-    const stream = await client.chat.completions.create({
+
+    const baseParams = {
       model: EXTRACT_MODEL,
       messages: [
-        { role: "system", content: EXTRACT_SYSTEM },
-        { role: "user", content: extractUserPrompt(input.text, input.now, input.timezone) },
+        { role: "system" as const, content: EXTRACT_SYSTEM },
+        { role: "user" as const, content: extractUserPrompt(input.text, input.now, input.timezone) },
       ],
-      max_tokens: 2048,
+      max_tokens: EXTRACT_MAX_TOKENS,
       temperature: 0.4,
       top_p: 0.95,
-      stream: true,
-    });
+    };
 
-    let buf = "";
     let fullContent = "";
     let emittedCount = 0;
     const seen = new Set<string>();
@@ -68,8 +71,21 @@ export class GemmaProvider implements LLMProvider {
       await onItem(item);
     };
 
-    const emitLineWithWrapped = async (raw: string) => {
-      const s = stripFences(raw);
+    const emitOne = async (raw: unknown) => {
+      const ok = extractedItemSchema.safeParse(raw);
+      if (!ok.success) return;
+      const key = `${ok.data.type}::${ok.data.content}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      try {
+        await wrappedOnItem(ok.data);
+      } catch (err) {
+        console.error("[gemma.extract] onItem failed", err);
+      }
+    };
+
+    const tryParseAndEmit = async (chunk: string) => {
+      const s = stripFences(chunk);
       if (!s) return;
       let parsed: unknown;
       try {
@@ -80,77 +96,58 @@ export class GemmaProvider implements LLMProvider {
       const arr: unknown[] =
         parsed && typeof parsed === "object" && Array.isArray((parsed as { items?: unknown }).items)
           ? (parsed as { items: unknown[] }).items
+          : Array.isArray(parsed)
+          ? (parsed as unknown[])
           : [parsed];
-      for (const raw of arr) {
-        const ok = extractedItemSchema.safeParse(raw);
-        if (!ok.success) continue;
-        const key = `${ok.data.type}::${ok.data.content}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        try {
-          await wrappedOnItem(ok.data);
-        } catch (err) {
-          console.error("[gemma.extract] onItem failed", err);
-        }
-      }
+      for (const item of arr) await emitOne(item);
     };
 
     try {
-      let firstChunkLogged = false;
-      for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta?.content ?? "";
-        if (!delta) continue;
-        if (!firstChunkLogged) {
-          firstChunkLogged = true;
-          console.log("[gemma.extract] first chunk", {
-            model: EXTRACT_MODEL,
-            ttfbMs: Date.now() - reqStart,
-          });
+      if (EXTRACT_STREAM) {
+        const stream = await client.chat.completions.create({ ...baseParams, stream: true });
+        let buf = "";
+        let firstChunkLogged = false;
+        for await (const chunk of stream) {
+          const delta = chunk.choices[0]?.delta?.content ?? "";
+          if (!delta) continue;
+          if (!firstChunkLogged) {
+            firstChunkLogged = true;
+            console.log("[gemma.extract] first chunk", {
+              model: EXTRACT_MODEL,
+              ttfbMs: Date.now() - reqStart,
+            });
+          }
+          buf += delta;
+          fullContent += delta;
+          let nl = buf.indexOf("\n");
+          while (nl >= 0) {
+            const line = buf.slice(0, nl);
+            buf = buf.slice(nl + 1);
+            await tryParseAndEmit(line);
+            nl = buf.indexOf("\n");
+          }
         }
-        buf += delta;
-        fullContent += delta;
-        let nl = buf.indexOf("\n");
-        while (nl >= 0) {
-          const line = buf.slice(0, nl);
-          buf = buf.slice(nl + 1);
-          await emitLineWithWrapped(line);
-          nl = buf.indexOf("\n");
+        if (buf.trim()) await tryParseAndEmit(buf);
+      } else {
+        const res = await client.chat.completions.create({ ...baseParams, stream: false });
+        fullContent = res.choices[0]?.message?.content ?? "";
+        console.log("[gemma.extract] first chunk", {
+          model: EXTRACT_MODEL,
+          ttfbMs: Date.now() - reqStart,
+          nonStreaming: true,
+        });
+        for (const line of fullContent.split("\n")) {
+          await tryParseAndEmit(line);
         }
       }
     } finally {
-      if (buf.trim()) await emitLineWithWrapped(buf);
-
-      // Fallback: if the LLM ignored NDJSON and returned one big JSON
-      // blob, try parsing the accumulated content as a whole.
+      // Fallback: if parsing found nothing but we have content, try whole-blob parse
       if (emittedCount === 0 && fullContent.trim()) {
-        const cleaned = stripFences(fullContent);
-        try {
-          const parsed = JSON.parse(cleaned);
-          const arr: unknown[] =
-            parsed && typeof parsed === "object" && Array.isArray((parsed as { items?: unknown }).items)
-              ? (parsed as { items: unknown[] }).items
-              : Array.isArray(parsed)
-              ? (parsed as unknown[])
-              : [parsed];
-          for (const raw of arr) {
-            const ok = extractedItemSchema.safeParse(raw);
-            if (!ok.success) continue;
-            const key = `${ok.data.type}::${ok.data.content}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            try {
-              await wrappedOnItem(ok.data);
-            } catch (err) {
-              console.error("[gemma.extract] fallback onItem failed", err);
-            }
-          }
-        } catch {
-          // ignore - nothing we can do
-        }
+        await tryParseAndEmit(fullContent);
       }
-
-      console.log("[gemma.extract] stream done", {
+      console.log("[gemma.extract] done", {
         emittedCount,
+        totalMs: Date.now() - reqStart,
         contentLen: fullContent.length,
         contentPreview: fullContent.slice(0, 300),
       });
