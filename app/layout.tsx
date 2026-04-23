@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: "/icon.svg",
-    apple: "/icon-192.png",
+    apple: "/icon.svg",
   },
 };
 
