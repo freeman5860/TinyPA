@@ -18,6 +18,13 @@ export async function extractForMessage(messageId: string, userId: string, timez
         timezone,
       },
       async (item) => {
+        if (item.type === "reply") {
+          await db
+            .update(messages)
+            .set({ replyText: item.content })
+            .where(eq(messages.id, messageId));
+          return;
+        }
         const [row] = await db
           .insert(items)
           .values({
