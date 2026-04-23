@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setDefaultResultOrder } from "node:dns";
+import { Agent, setGlobalDispatcher } from "undici";
 import OpenAI from "openai";
 
 export const dynamic = "force-dynamic";
@@ -7,6 +8,13 @@ export const maxDuration = 60;
 
 try {
   setDefaultResultOrder("ipv4first");
+  setGlobalDispatcher(
+    new Agent({
+      connect: { family: 4, timeout: 10_000 },
+      keepAliveTimeout: 30_000,
+      keepAliveMaxTimeout: 60_000,
+    })
+  );
 } catch {
   // noop
 }

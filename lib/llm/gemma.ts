@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { setDefaultResultOrder } from "node:dns";
+import { Agent, setGlobalDispatcher } from "undici";
 import {
   LLMProvider,
   ExtractedItem,
@@ -14,15 +15,24 @@ import {
   digestUserPrompt,
 } from "./prompts";
 
-// Force IPv4-first DNS resolution. On Vercel serverless lambdas, Node's
-// default ipv6first behavior can stall for 30-60s on the first outbound
-// HTTPS connection to NIM (the IPv6 path from Vercel's egress is often
-// slow/blackholed, Node waits for the IPv6 connect to time out before
-// falling back to IPv4). Forcing v4 sidesteps the whole cold-start wait.
+// Vercel lambdas stall 30-60s on the first outbound HTTPS to NIM because
+// Node tries IPv6 first and the IPv6 path is broken/blackholed from
+// Vercel's egress. Combine two fixes:
+//   1. setDefaultResultOrder('ipv4first') — hint to DNS resolver
+//   2. undici Agent with connect.family=4 — force TCP over IPv4 with a
+//      hard 10s connect timeout so we fail fast if v4 is also broken,
+//      instead of silently hanging until the SDK timeout fires.
 try {
   setDefaultResultOrder("ipv4first");
+  setGlobalDispatcher(
+    new Agent({
+      connect: { family: 4, timeout: 10_000 },
+      keepAliveTimeout: 30_000,
+      keepAliveMaxTimeout: 60_000,
+    })
+  );
 } catch {
-  // Unsupported on old Node / Edge runtime; safe to ignore.
+  // Edge runtime / older Node: skip.
 }
 
 const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "meta/llama-3.1-8b-instruct";
