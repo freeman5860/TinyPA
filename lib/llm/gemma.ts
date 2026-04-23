@@ -15,13 +15,14 @@ import {
 
 const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "meta/llama-3.1-8b-instruct";
 const DIGEST_MODEL = process.env.LLM_DIGEST_MODEL ?? "google/gemma-4-31b-it";
+const LLM_BASE_URL = process.env.LLM_BASE_URL ?? "https://integrate.api.nvidia.com/v1";
 
 function makeClient() {
-  const apiKey = process.env.NVIDIA_API_KEY;
-  if (!apiKey) throw new Error("NVIDIA_API_KEY is not set");
+  const apiKey = process.env.LLM_API_KEY || process.env.NVIDIA_API_KEY;
+  if (!apiKey) throw new Error("LLM_API_KEY (or NVIDIA_API_KEY) is not set");
   return new OpenAI({
     apiKey,
-    baseURL: "https://integrate.api.nvidia.com/v1",
+    baseURL: LLM_BASE_URL,
     timeout: 45_000,
     maxRetries: 0,
   });
@@ -40,6 +41,12 @@ export class GemmaProvider implements LLMProvider {
     onItem: (item: ExtractedItem) => Promise<void>
   ): Promise<void> {
     const client = makeClient();
+    const reqStart = Date.now();
+    console.log("[gemma.extract] start", {
+      model: EXTRACT_MODEL,
+      baseURL: LLM_BASE_URL,
+      inputLen: input.text.length,
+    });
     const stream = await client.chat.completions.create({
       model: EXTRACT_MODEL,
       messages: [
@@ -89,9 +96,17 @@ export class GemmaProvider implements LLMProvider {
     };
 
     try {
+      let firstChunkLogged = false;
       for await (const chunk of stream) {
         const delta = chunk.choices[0]?.delta?.content ?? "";
         if (!delta) continue;
+        if (!firstChunkLogged) {
+          firstChunkLogged = true;
+          console.log("[gemma.extract] first chunk", {
+            model: EXTRACT_MODEL,
+            ttfbMs: Date.now() - reqStart,
+          });
+        }
         buf += delta;
         fullContent += delta;
         let nl = buf.indexOf("\n");
