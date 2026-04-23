@@ -21,6 +21,8 @@ function makeClient() {
   return new OpenAI({
     apiKey,
     baseURL: "https://integrate.api.nvidia.com/v1",
+    timeout: 45_000,
+    maxRetries: 0,
   });
 }
 

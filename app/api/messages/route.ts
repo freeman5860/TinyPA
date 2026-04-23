@@ -57,24 +57,27 @@ export async function POST(req: NextRequest) {
 
   after(async () => {
     const t0 = Date.now();
+    let ok = false;
+    let count = 0;
+    let errMsg: string | null = null;
     try {
       const { items } = await extractForMessage(msg.id, userId, timezone);
-      console.log("[messages] extracted", {
-        msgId: msg.id,
-        count: items.length,
-        ms: Date.now() - t0,
-      });
+      ok = true;
+      count = items.length;
     } catch (err) {
-      console.error("[messages] extract failed", {
-        msgId: msg.id,
-        ms: Date.now() - t0,
-        err: err instanceof Error ? err.message : String(err),
-      });
+      errMsg = err instanceof Error ? err.message : String(err);
+    } finally {
       await db
         .update(messages)
         .set({ processedAt: new Date() })
         .where(eq(messages.id, msg.id))
-        .catch(() => null);
+        .catch((e) => console.error("[messages] stamp failed", msg.id, e));
+      const ms = Date.now() - t0;
+      if (ok) {
+        console.log("[messages] extracted", { msgId: msg.id, count, ms });
+      } else {
+        console.error("[messages] extract failed", { msgId: msg.id, ms, err: errMsg });
+      }
     }
   });
 

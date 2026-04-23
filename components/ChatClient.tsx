@@ -77,12 +77,21 @@ export default function ChatClient() {
 
   function schedulePoll() {
     if (pollTimer.current) clearTimeout(pollTimer.current);
-    if (Date.now() > pollStop.current) return;
+    if (Date.now() > pollStop.current) {
+      setMsgs((prev) =>
+        prev.map((m) => (m.pending ? { ...m, pending: false, error: true } : m))
+      );
+      return;
+    }
     pollTimer.current = setTimeout(async () => {
       await refresh();
       setMsgs((prev) => {
         const stillPending = prev.some((m) => m.pending);
-        if (stillPending && Date.now() < pollStop.current) schedulePoll();
+        if (stillPending && Date.now() < pollStop.current) {
+          schedulePoll();
+        } else if (stillPending) {
+          return prev.map((m) => (m.pending ? { ...m, pending: false, error: true } : m));
+        }
         return prev;
       });
     }, 1500);
@@ -170,7 +179,9 @@ export default function ChatClient() {
                 </div>
               )}
               {m.error && (
-                <div className="pr-1 text-xs text-amber-400">整理失败，已保留原文。</div>
+                <div className="pr-1 text-xs text-amber-400">
+                  整理超时，AI 那边比较慢。你的原话已经记下了，稍后刷新试试。
+                </div>
               )}
               {m.items && m.items.length > 0 && (
                 <div className="flex max-w-[85%] flex-col gap-1.5">
