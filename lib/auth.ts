@@ -21,7 +21,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       maxAge: 60 * 15,
       async sendVerificationRequest({ identifier, url }) {
         const host = new URL(url).host;
-        await resend().emails.send({
+        const { data, error } = await resend().emails.send({
           from: MAIL_FROM,
           to: identifier,
           subject: `登录 TinyPA`,
@@ -36,6 +36,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             </div>
           `,
         });
+        if (error) {
+          console.error("[auth.email] resend send failed", {
+            to: identifier,
+            from: MAIL_FROM,
+            name: error.name,
+            message: error.message,
+          });
+          throw new Error(`Resend error: ${error.name}: ${error.message}`);
+        }
+        console.log("[auth.email] sent", { to: identifier, id: data?.id });
       },
     },
   ],
