@@ -4,6 +4,9 @@ import { db, messages, users } from "@/lib/db";
 import { extractForMessage } from "@/lib/jobs/extract";
 import { eq, desc } from "drizzle-orm";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -35,10 +38,19 @@ export async function POST(req: NextRequest) {
     .returning();
 
   try {
+    const t0 = Date.now();
     const { items } = await extractForMessage(msg.id, session.user.id, timezone);
+    console.log("[messages] extracted", {
+      msgId: msg.id,
+      count: items.length,
+      ms: Date.now() - t0,
+    });
     return NextResponse.json({ message: msg, items });
   } catch (err) {
-    console.error("[messages] extract failed", err);
+    console.error("[messages] extract failed", {
+      msgId: msg.id,
+      err: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json({ message: msg, items: [], extractError: true });
   }
 }
