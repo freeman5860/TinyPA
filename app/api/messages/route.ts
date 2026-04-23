@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { auth } from "@/lib/auth";
-import { db, messages, users } from "@/lib/db";
+import { db, messages, items, users } from "@/lib/db";
 import { extractForMessage } from "@/lib/jobs/extract";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -11,13 +11,30 @@ export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const rows = await db
+  const msgRows = await db
     .select()
     .from(messages)
     .where(eq(messages.userId, session.user.id))
     .orderBy(desc(messages.createdAt))
     .limit(50);
-  return NextResponse.json({ messages: rows.reverse() });
+
+  const ordered = msgRows.reverse();
+  const ids = ordered.map((m) => m.id);
+
+  const itemRows = ids.length
+    ? await db.select().from(items).where(inArray(items.messageId, ids))
+    : [];
+
+  const byMsg = new Map<string, typeof itemRows>();
+  for (const it of itemRows) {
+    if (!it.messageId) continue;
+    const arr = byMsg.get(it.messageId) ?? [];
+    arr.push(it);
+    byMsg.set(it.messageId, arr);
+  }
+
+  const withItems = ordered.map((m) => ({ ...m, items: byMsg.get(m.id) ?? [] }));
+  return NextResponse.json({ messages: withItems });
 }
 
 export async function POST(req: NextRequest) {
@@ -31,26 +48,35 @@ export async function POST(req: NextRequest) {
 
   const [user] = await db.select().from(users).where(eq(users.id, session.user.id));
   const timezone = user?.timezone ?? "Asia/Shanghai";
+  const userId = session.user.id;
 
   const [msg] = await db
     .insert(messages)
-    .values({ userId: session.user.id, rawText: text })
+    .values({ userId, rawText: text })
     .returning();
 
-  try {
+  after(async () => {
     const t0 = Date.now();
-    const { items } = await extractForMessage(msg.id, session.user.id, timezone);
-    console.log("[messages] extracted", {
-      msgId: msg.id,
-      count: items.length,
-      ms: Date.now() - t0,
-    });
-    return NextResponse.json({ message: msg, items });
-  } catch (err) {
-    console.error("[messages] extract failed", {
-      msgId: msg.id,
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return NextResponse.json({ message: msg, items: [], extractError: true });
-  }
+    try {
+      const { items } = await extractForMessage(msg.id, userId, timezone);
+      console.log("[messages] extracted", {
+        msgId: msg.id,
+        count: items.length,
+        ms: Date.now() - t0,
+      });
+    } catch (err) {
+      console.error("[messages] extract failed", {
+        msgId: msg.id,
+        ms: Date.now() - t0,
+        err: err instanceof Error ? err.message : String(err),
+      });
+      await db
+        .update(messages)
+        .set({ processedAt: new Date() })
+        .where(eq(messages.id, msg.id))
+        .catch(() => null);
+    }
+  });
+
+  return NextResponse.json({ message: { ...msg, items: [] }, pending: true });
 }

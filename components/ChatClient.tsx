@@ -15,7 +15,8 @@ type Msg = {
   id: string;
   rawText: string;
   createdAt: string;
-  items?: Item[];
+  processedAt: string | null;
+  items: Item[];
   pending?: boolean;
   error?: boolean;
 };
@@ -40,27 +41,52 @@ export default function ChatClient() {
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollStop = useRef<number>(0);
 
   useEffect(() => {
-    fetch("/api/messages")
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d.messages)) {
-          setMsgs(
-            d.messages.map((m: { id: string; rawText: string; createdAt: string }) => ({
-              id: m.id,
-              rawText: m.rawText,
-              createdAt: m.createdAt,
-            }))
-          );
-        }
-      })
-      .catch(() => {});
+    refresh();
+    return () => {
+      if (pollTimer.current) clearTimeout(pollTimer.current);
+    };
   }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs.length]);
+
+  async function refresh() {
+    try {
+      const r = await fetch("/api/messages", { cache: "no-store" });
+      const d = await r.json();
+      if (Array.isArray(d.messages)) {
+        setMsgs((prev) =>
+          (d.messages as Msg[]).map((m) => {
+            const local = prev.find((p) => p.id === m.id);
+            const stillPending = !m.processedAt;
+            return {
+              ...m,
+              pending: local?.pending && stillPending ? true : false,
+              error: local?.error,
+            };
+          })
+        );
+      }
+    } catch {}
+  }
+
+  function schedulePoll() {
+    if (pollTimer.current) clearTimeout(pollTimer.current);
+    if (Date.now() > pollStop.current) return;
+    pollTimer.current = setTimeout(async () => {
+      await refresh();
+      setMsgs((prev) => {
+        const stillPending = prev.some((m) => m.pending);
+        if (stillPending && Date.now() < pollStop.current) schedulePoll();
+        return prev;
+      });
+    }, 1500);
+  }
 
   async function send() {
     const t = text.trim();
@@ -68,10 +94,16 @@ export default function ChatClient() {
     setSending(true);
     setText("");
     const tempId = `tmp-${Date.now()}`;
-    setMsgs((m) => [
-      ...m,
-      { id: tempId, rawText: t, createdAt: new Date().toISOString(), pending: true },
-    ]);
+    const optimistic: Msg = {
+      id: tempId,
+      rawText: t,
+      createdAt: new Date().toISOString(),
+      processedAt: null,
+      items: [],
+      pending: true,
+    };
+    setMsgs((m) => [...m, optimistic]);
+
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
@@ -79,6 +111,8 @@ export default function ChatClient() {
         body: JSON.stringify({ text: t }),
       });
       const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "send_failed");
+
       setMsgs((m) =>
         m.map((x) =>
           x.id === tempId
@@ -86,14 +120,20 @@ export default function ChatClient() {
                 id: d.message.id,
                 rawText: d.message.rawText,
                 createdAt: d.message.createdAt,
-                items: d.items,
-                error: d.extractError,
+                processedAt: d.message.processedAt ?? null,
+                items: d.message.items ?? [],
+                pending: true,
               }
             : x
         )
       );
+
+      pollStop.current = Date.now() + 60_000;
+      schedulePoll();
     } catch {
-      setMsgs((m) => m.map((x) => (x.id === tempId ? { ...x, pending: false, error: true } : x)));
+      setMsgs((m) =>
+        m.map((x) => (x.id === tempId ? { ...x, pending: false, error: true } : x))
+      );
     } finally {
       setSending(false);
       taRef.current?.focus();
@@ -114,7 +154,9 @@ export default function ChatClient() {
         <div className="mx-auto flex max-w-xl flex-col gap-4">
           {msgs.length === 0 && (
             <div className="mt-16 text-center text-sm text-mute">
-              第一次来？<br />试试"明天下午3点开会要准备财报"或"今天有点累"。
+              第一次来？
+              <br />
+              试试"明天下午3点开会要准备财报"或"今天有点累"。
             </div>
           )}
           {msgs.map((m) => (
@@ -123,7 +165,9 @@ export default function ChatClient() {
                 <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{m.rawText}</div>
               </div>
               {m.pending && (
-                <div className="pr-1 text-xs text-mute">正在整理…</div>
+                <div className="flex items-center gap-1.5 pr-1 text-xs text-mute">
+                  <Spinner /> 正在整理…
+                </div>
               )}
               {m.error && (
                 <div className="pr-1 text-xs text-amber-400">整理失败，已保留原文。</div>
@@ -135,9 +179,7 @@ export default function ChatClient() {
                       key={it.id}
                       className="flex items-start gap-2 rounded-xl rounded-tr-md border border-border bg-panel px-3 py-2 text-sm"
                     >
-                      <span
-                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] ${typeColor[it.type]}`}
-                      >
+                      <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] ${typeColor[it.type]}`}>
                         {typeLabel[it.type]}
                       </span>
                       <div className="flex-1 text-ink">
@@ -157,7 +199,7 @@ export default function ChatClient() {
                   ))}
                 </div>
               )}
-              {m.items && m.items.length === 0 && !m.pending && !m.error && (
+              {m.processedAt && m.items.length === 0 && !m.pending && !m.error && (
                 <div className="pr-1 text-xs text-mute">已记录。</div>
               )}
             </div>
@@ -189,10 +231,22 @@ export default function ChatClient() {
             发送
           </button>
         </div>
-        <div className="mx-auto mt-1 max-w-xl px-1 text-[11px] text-mute">
-          ⌘/Ctrl + Enter 发送
-        </div>
+        <div className="mx-auto mt-1 max-w-xl px-1 text-[11px] text-mute">⌘/Ctrl + Enter 发送</div>
       </div>
     </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg
+      className="h-3 w-3 animate-spin text-mute"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
   );
 }
