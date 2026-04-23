@@ -51,8 +51,16 @@ export class GemmaProvider implements LLMProvider {
       stream: true,
     });
 
+    let buf = "";
+    let fullContent = "";
+    let emittedCount = 0;
     const seen = new Set<string>();
-    const emit = async (raw: string) => {
+    const wrappedOnItem = async (item: ExtractedItem) => {
+      emittedCount++;
+      await onItem(item);
+    };
+
+    const emitLineWithWrapped = async (raw: string) => {
       const s = stripFences(raw);
       if (!s) return;
       let parsed: unknown;
@@ -61,40 +69,75 @@ export class GemmaProvider implements LLMProvider {
       } catch {
         return;
       }
-      const items: unknown[] =
+      const arr: unknown[] =
         parsed && typeof parsed === "object" && Array.isArray((parsed as { items?: unknown }).items)
           ? (parsed as { items: unknown[] }).items
           : [parsed];
-      for (const raw of items) {
+      for (const raw of arr) {
         const ok = extractedItemSchema.safeParse(raw);
         if (!ok.success) continue;
         const key = `${ok.data.type}::${ok.data.content}`;
         if (seen.has(key)) continue;
         seen.add(key);
         try {
-          await onItem(ok.data);
+          await wrappedOnItem(ok.data);
         } catch (err) {
           console.error("[gemma.extract] onItem failed", err);
         }
       }
     };
 
-    let buf = "";
     try {
       for await (const chunk of stream) {
         const delta = chunk.choices[0]?.delta?.content ?? "";
         if (!delta) continue;
         buf += delta;
+        fullContent += delta;
         let nl = buf.indexOf("\n");
         while (nl >= 0) {
           const line = buf.slice(0, nl);
           buf = buf.slice(nl + 1);
-          await emit(line);
+          await emitLineWithWrapped(line);
           nl = buf.indexOf("\n");
         }
       }
     } finally {
-      if (buf.trim()) await emit(buf);
+      if (buf.trim()) await emitLineWithWrapped(buf);
+
+      // Fallback: if the LLM ignored NDJSON and returned one big JSON
+      // blob, try parsing the accumulated content as a whole.
+      if (emittedCount === 0 && fullContent.trim()) {
+        const cleaned = stripFences(fullContent);
+        try {
+          const parsed = JSON.parse(cleaned);
+          const arr: unknown[] =
+            parsed && typeof parsed === "object" && Array.isArray((parsed as { items?: unknown }).items)
+              ? (parsed as { items: unknown[] }).items
+              : Array.isArray(parsed)
+              ? (parsed as unknown[])
+              : [parsed];
+          for (const raw of arr) {
+            const ok = extractedItemSchema.safeParse(raw);
+            if (!ok.success) continue;
+            const key = `${ok.data.type}::${ok.data.content}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            try {
+              await wrappedOnItem(ok.data);
+            } catch (err) {
+              console.error("[gemma.extract] fallback onItem failed", err);
+            }
+          }
+        } catch {
+          // ignore - nothing we can do
+        }
+      }
+
+      console.log("[gemma.extract] stream done", {
+        emittedCount,
+        contentLen: fullContent.length,
+        contentPreview: fullContent.slice(0, 300),
+      });
     }
   }
 
