@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 export const dynamic = "force-dynamic";
 
 export default async function ConfirmPage({
@@ -19,6 +17,7 @@ export default async function ConfirmPage({
   const confirmHref = `/api/auth/callback/email?${qs.toString()}`;
 
   const valid = token && email;
+  const tokenPreview = token ? `${token.slice(0, 8)}…${token.slice(-4)}` : "";
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-6">
@@ -29,15 +28,16 @@ export default async function ConfirmPage({
             <p className="mt-2 text-sm text-mute">
               即将以 <span className="text-ink">{email}</span> 登录。
             </p>
-            <Link
+            <p className="mt-1 text-xs text-mute/70">token: {tokenPreview}</p>
+            <a
               href={confirmHref}
-              prefetch={false}
+              rel="noreferrer nofollow noopener"
               className="mt-6 block w-full rounded-lg bg-accent py-2.5 text-center font-medium text-white hover:opacity-90"
             >
               确认登录
-            </Link>
+            </a>
             <p className="mt-3 text-xs text-mute">
-              这一步是为了防止邮件客户端自动预取链接消耗掉一次性 token。
+              这一步是为了防止邮件客户端自动预取链接消耗掉一次性 token。链接 15 分钟内有效，一次性使用。
             </p>
           </>
         ) : (
