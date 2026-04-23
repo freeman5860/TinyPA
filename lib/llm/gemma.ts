@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { setDefaultResultOrder } from "node:dns";
-import { Agent, setGlobalDispatcher } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 import {
   LLMProvider,
   ExtractedItem,
@@ -15,25 +15,32 @@ import {
   digestUserPrompt,
 } from "./prompts";
 
-// Vercel lambdas stall 30-60s on the first outbound HTTPS to NIM because
-// Node tries IPv6 first and the IPv6 path is broken/blackholed from
-// Vercel's egress. Combine two fixes:
-//   1. setDefaultResultOrder('ipv4first') — hint to DNS resolver
-//   2. undici Agent with connect.family=4 — force TCP over IPv4 with a
-//      hard 10s connect timeout so we fail fast if v4 is also broken,
-//      instead of silently hanging until the SDK timeout fires.
+// Force IPv4 + bypass Next.js's fetch wrapper. Two things going wrong
+// on Vercel lambdas:
+//   1. Node prefers IPv6; the IPv6 path to NIM is stalled/blackholed,
+//      so the first connect() hangs 30-60s before falling back to v4.
+//   2. Next.js instruments the global fetch, so setGlobalDispatcher
+//      doesn't reach the OpenAI SDK's actual HTTP calls.
+// Fix both by (a) hinting the DNS resolver to prefer v4, and (b)
+// passing undici's fetch + an IPv4-only Agent directly to the OpenAI
+// SDK's `fetch` option.
 try {
   setDefaultResultOrder("ipv4first");
-  setGlobalDispatcher(
-    new Agent({
-      connect: { family: 4, timeout: 10_000 },
-      keepAliveTimeout: 30_000,
-      keepAliveMaxTimeout: 60_000,
-    })
-  );
 } catch {
   // Edge runtime / older Node: skip.
 }
+
+const llmAgent = new Agent({
+  connect: { family: 4, timeout: 10_000 },
+  keepAliveTimeout: 30_000,
+  keepAliveMaxTimeout: 60_000,
+});
+
+const llmFetch: typeof fetch = (input, init) =>
+  undiciFetch(
+    input as Parameters<typeof undiciFetch>[0],
+    { ...(init as Parameters<typeof undiciFetch>[1]), dispatcher: llmAgent }
+  ) as unknown as Promise<Response>;
 
 const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "meta/llama-3.1-8b-instruct";
 const DIGEST_MODEL = process.env.LLM_DIGEST_MODEL ?? "google/gemma-4-31b-it";
@@ -49,6 +56,7 @@ function makeClient() {
     baseURL: LLM_BASE_URL,
     timeout: 45_000,
     maxRetries: 0,
+    fetch: llmFetch,
   });
 }
 

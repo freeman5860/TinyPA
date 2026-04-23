@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setDefaultResultOrder } from "node:dns";
-import { Agent, setGlobalDispatcher } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 import OpenAI from "openai";
 
 export const dynamic = "force-dynamic";
@@ -8,21 +8,21 @@ export const maxDuration = 60;
 
 try {
   setDefaultResultOrder("ipv4first");
-  setGlobalDispatcher(
-    new Agent({
-      connect: { family: 4, timeout: 10_000 },
-      keepAliveTimeout: 30_000,
-      keepAliveMaxTimeout: 60_000,
-    })
-  );
 } catch {
   // noop
 }
 
-// Hit this from anywhere (no auth) — gated only by ?secret=$CRON_SECRET so it
-// can't be abused. Runs the exact same two calls as test-nim.mjs, inside a
-// Vercel function, so we can tell network/key/region issues apart from
-// issues specific to after() background execution.
+const debugAgent = new Agent({
+  connect: { family: 4, timeout: 10_000 },
+  keepAliveTimeout: 30_000,
+  keepAliveMaxTimeout: 60_000,
+});
+
+const debugFetch: typeof fetch = (input, init) =>
+  undiciFetch(
+    input as Parameters<typeof undiciFetch>[0],
+    { ...(init as Parameters<typeof undiciFetch>[1]), dispatcher: debugAgent }
+  ) as unknown as Promise<Response>;
 
 function authorized(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -39,7 +39,13 @@ export async function GET(req: NextRequest) {
   const apiKey = process.env.LLM_API_KEY || process.env.NVIDIA_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "no_api_key" }, { status: 500 });
 
-  const client = new OpenAI({ apiKey, baseURL, timeout: 55_000, maxRetries: 0 });
+  const client = new OpenAI({
+    apiKey,
+    baseURL,
+    timeout: 55_000,
+    maxRetries: 0,
+    fetch: debugFetch,
+  });
 
   async function nonStream() {
     const t0 = Date.now();
