@@ -35,10 +35,9 @@ export interface DigestResult {
 }
 
 export interface LLMProvider {
-  extract(input: {
-    text: string;
-    now: string;
-    timezone: string;
-  }): Promise<ExtractResult>;
+  extract(
+    input: { text: string; now: string; timezone: string },
+    onItem: (item: ExtractedItem) => Promise<void>
+  ): Promise<void>;
   digest(input: DigestInput): Promise<DigestResult>;
 }

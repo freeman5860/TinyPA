@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import {
   LLMProvider,
-  ExtractResult,
-  extractResultSchema,
+  ExtractedItem,
+  extractedItemSchema,
   DigestInput,
   DigestResult,
 } from "./provider";
@@ -28,15 +28,18 @@ function makeClient() {
 
 function stripFences(raw: string) {
   return raw
-    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/^```(?:json|ndjson)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
 }
 
 export class GemmaProvider implements LLMProvider {
-  async extract(input: { text: string; now: string; timezone: string }): Promise<ExtractResult> {
+  async extract(
+    input: { text: string; now: string; timezone: string },
+    onItem: (item: ExtractedItem) => Promise<void>
+  ): Promise<void> {
     const client = makeClient();
-    const res = await client.chat.completions.create({
+    const stream = await client.chat.completions.create({
       model: MODEL,
       messages: [
         { role: "system", content: EXTRACT_SYSTEM },
@@ -45,16 +48,53 @@ export class GemmaProvider implements LLMProvider {
       max_tokens: 2048,
       temperature: 0.4,
       top_p: 0.95,
-      stream: false,
+      stream: true,
     });
-    const raw = res.choices[0]?.message?.content ?? "";
-    const cleaned = stripFences(raw);
+
+    const seen = new Set<string>();
+    const emit = async (raw: string) => {
+      const s = stripFences(raw);
+      if (!s) return;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(s);
+      } catch {
+        return;
+      }
+      const items: unknown[] =
+        parsed && typeof parsed === "object" && Array.isArray((parsed as { items?: unknown }).items)
+          ? (parsed as { items: unknown[] }).items
+          : [parsed];
+      for (const raw of items) {
+        const ok = extractedItemSchema.safeParse(raw);
+        if (!ok.success) continue;
+        const key = `${ok.data.type}::${ok.data.content}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        try {
+          await onItem(ok.data);
+        } catch (err) {
+          console.error("[gemma.extract] onItem failed", err);
+        }
+      }
+    };
+
+    let buf = "";
     try {
-      const parsed = JSON.parse(cleaned);
-      return extractResultSchema.parse(parsed);
-    } catch (err) {
-      console.error("[gemma.extract] parse failed", { raw, err });
-      return { items: [] };
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content ?? "";
+        if (!delta) continue;
+        buf += delta;
+        let nl = buf.indexOf("\n");
+        while (nl >= 0) {
+          const line = buf.slice(0, nl);
+          buf = buf.slice(nl + 1);
+          await emit(line);
+          nl = buf.indexOf("\n");
+        }
+      }
+    } finally {
+      if (buf.trim()) await emit(buf);
     }
   }
 
