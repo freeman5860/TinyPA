@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { setDefaultResultOrder } from "node:dns";
 import {
   LLMProvider,
   ExtractedItem,
@@ -12,6 +13,17 @@ import {
   DIGEST_SYSTEM,
   digestUserPrompt,
 } from "./prompts";
+
+// Force IPv4-first DNS resolution. On Vercel serverless lambdas, Node's
+// default ipv6first behavior can stall for 30-60s on the first outbound
+// HTTPS connection to NIM (the IPv6 path from Vercel's egress is often
+// slow/blackholed, Node waits for the IPv6 connect to time out before
+// falling back to IPv4). Forcing v4 sidesteps the whole cold-start wait.
+try {
+  setDefaultResultOrder("ipv4first");
+} catch {
+  // Unsupported on old Node / Edge runtime; safe to ignore.
+}
 
 const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "meta/llama-3.1-8b-instruct";
 const DIGEST_MODEL = process.env.LLM_DIGEST_MODEL ?? "google/gemma-4-31b-it";

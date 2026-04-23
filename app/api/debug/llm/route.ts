@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { setDefaultResultOrder } from "node:dns";
 import OpenAI from "openai";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+try {
+  setDefaultResultOrder("ipv4first");
+} catch {
+  // noop
+}
 
 // Hit this from anywhere (no auth) — gated only by ?secret=$CRON_SECRET so it
 // can't be abused. Runs the exact same two calls as test-nim.mjs, inside a
