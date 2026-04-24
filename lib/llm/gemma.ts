@@ -43,10 +43,11 @@ const llmFetch: typeof fetch = (input, init) =>
   ) as unknown as Promise<Response>;
 
 const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "meta/llama-3.3-70b-instruct";
-const DIGEST_MODEL = process.env.LLM_DIGEST_MODEL ?? "google/gemma-4-31b-it";
+const DIGEST_MODEL = process.env.LLM_DIGEST_MODEL ?? "meta/llama-3.3-70b-instruct";
 const LLM_BASE_URL = process.env.LLM_BASE_URL ?? "https://integrate.api.nvidia.com/v1";
 const EXTRACT_STREAM = (process.env.LLM_EXTRACT_STREAM ?? "true").toLowerCase() !== "false";
 const EXTRACT_MAX_TOKENS = Number(process.env.LLM_EXTRACT_MAX_TOKENS ?? 1024);
+const DIGEST_MAX_TOKENS = Number(process.env.LLM_DIGEST_MAX_TOKENS ?? 1024);
 
 function makeClient() {
   const apiKey = process.env.LLM_API_KEY || process.env.NVIDIA_API_KEY;
@@ -186,19 +187,18 @@ export class GemmaProvider implements LLMProvider {
 
   async digest(input: DigestInput): Promise<DigestResult> {
     const client = makeClient();
+    const t0 = Date.now();
+    console.log("[gemma.digest] start", { model: DIGEST_MODEL, maxTokens: DIGEST_MAX_TOKENS });
     const params = {
       model: DIGEST_MODEL,
       messages: [
         { role: "system" as const, content: DIGEST_SYSTEM },
         { role: "user" as const, content: digestUserPrompt(input) },
       ],
-      max_tokens: 4096,
+      max_tokens: DIGEST_MAX_TOKENS,
       temperature: 0.7,
       top_p: 0.95,
       stream: false as const,
-      // NIM extension: make Gemma "think" before writing the digest.
-      // The OpenAI SDK passes unknown fields through to the HTTP body.
-      chat_template_kwargs: { enable_thinking: true },
     };
     const res = await client.chat.completions.create(
       params as unknown as Parameters<typeof client.chat.completions.create>[0]
@@ -206,6 +206,10 @@ export class GemmaProvider implements LLMProvider {
     const raw =
       ("choices" in res && res.choices?.[0]?.message?.content) ||
       "";
+    console.log("[gemma.digest] done", {
+      ms: Date.now() - t0,
+      rawLen: raw.length,
+    });
     const { summaryMd, topTodoIds } = parseDigestOutput(raw, input.openTodos.map((t) => t.id));
     return { summaryMd, topTodoIds };
   }

@@ -26,12 +26,14 @@ export async function GET(req: NextRequest) {
 
   const results: { userId: string; ran: boolean; reason?: string }[] = [];
   for (const u of rows) {
+    const t0 = Date.now();
     try {
       await generateDigestForUser(u.id);
       results.push({ userId: u.id, ran: true });
     } catch (err) {
-      console.error("[cron/digest]", u.id, err);
-      results.push({ userId: u.id, ran: false, reason: "error" });
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[cron/digest]", u.id, { ms: Date.now() - t0, err: msg });
+      results.push({ userId: u.id, ran: false, reason: msg });
     }
   }
   return NextResponse.json({ count: results.length, results });
