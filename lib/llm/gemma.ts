@@ -42,7 +42,7 @@ const llmFetch: typeof fetch = (input, init) =>
     { ...(init as Parameters<typeof undiciFetch>[1]), dispatcher: llmAgent }
   ) as unknown as Promise<Response>;
 
-const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "meta/llama-3.1-8b-instruct";
+const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "google/gemma-4-31b-it";
 const DIGEST_MODEL = process.env.LLM_DIGEST_MODEL ?? "google/gemma-4-31b-it";
 const LLM_BASE_URL = process.env.LLM_BASE_URL ?? "https://integrate.api.nvidia.com/v1";
 const EXTRACT_STREAM = (process.env.LLM_EXTRACT_STREAM ?? "true").toLowerCase() !== "false";
