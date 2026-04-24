@@ -22,7 +22,22 @@ export async function GET() {
   const ids = ordered.map((m) => m.id);
 
   const itemRows = ids.length
-    ? await db.select().from(items).where(inArray(items.messageId, ids))
+    ? await db
+        .select({
+          id: items.id,
+          userId: items.userId,
+          messageId: items.messageId,
+          type: items.type,
+          content: items.content,
+          dueAt: items.dueAt,
+          priority: items.priority,
+          status: items.status,
+          tags: items.tags,
+          createdAt: items.createdAt,
+          completedAt: items.completedAt,
+        })
+        .from(items)
+        .where(inArray(items.messageId, ids))
     : [];
 
   const byMsg = new Map<string, typeof itemRows>();

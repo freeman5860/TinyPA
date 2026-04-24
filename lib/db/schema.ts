@@ -9,8 +9,21 @@ import {
   uuid,
   primaryKey,
   index,
+  customType,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+
+const vector1024 = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return "vector(1024)";
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value: string): number[] {
+    return JSON.parse(value);
+  },
+});
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -103,6 +116,7 @@ export const items = pgTable(
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    embedding: vector1024("embedding"),
   },
   (t) => ({
     userTypeStatusIdx: index("items_user_type_status_idx").on(t.userId, t.type, t.status),

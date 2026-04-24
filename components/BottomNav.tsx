@@ -7,6 +7,7 @@ import clsx from "clsx";
 const tabs = [
   { href: "/", label: "聊天", icon: "chat" },
   { href: "/today", label: "今日", icon: "today" },
+  { href: "/notes", label: "搜索", icon: "search" },
   { href: "/review", label: "复盘", icon: "review" },
   { href: "/settings", label: "设置", icon: "settings" },
 ] as const;
@@ -59,6 +60,13 @@ function Icon({ name, active }: { name: string; active: boolean }) {
         <svg {...common} viewBox="0 0 24 24">
           <rect x="4" y="5" width="16" height="15" rx="2" />
           <path d="M4 9h16M9 3v4M15 3v4" strokeLinecap="round" />
+        </svg>
+      );
+    case "search":
+      return (
+        <svg {...common} viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="6" />
+          <path d="m20 20-4.5-4.5" strokeLinecap="round" />
         </svg>
       );
     case "review":

@@ -97,6 +97,7 @@ git push -u origin main
    | `MAIL_FROM` | `TinyPA <onboarding@resend.dev>` 或你的域 | |
    | `NVIDIA_API_KEY` | `nvapi-xxx` | |
    | `CRON_SECRET` | `openssl rand -hex 32` | **必填**，Vercel Cron 会用它签头 |
+   | `LLM_EMBED_MODEL` | 留空或 `nvidia/nv-embedqa-e5-v5` | 可选，语义搜索用，维度必须和 schema 匹配 |
 
 5. **Deploy**。首次构建 1-2 分钟。
 
@@ -126,6 +127,29 @@ DATABASE_URL="postgres://neondb_owner:xxx@ep-xxx-pooler.../neondb?sslmode=requir
 ```
 
 看到 `[✓] Changes applied` 就完事了。以后每次改 `lib/db/schema.ts` 都这样推一次。
+
+### 4.1 启用 pgvector（语义搜索用）
+
+`/notes` 的语义搜索依赖 Postgres 的 `vector` 扩展。Neon 支持但默认不开，而且 drizzle-kit 不会帮你发 `CREATE EXTENSION`。第一次部署 / 拉了 pgvector 相关改动后按这个顺序跑：
+
+```bash
+# 1. 先开扩展（重复跑无害）
+psql "$DATABASE_URL" -f drizzle/0001_pgvector.sql
+
+# 2. 再推 schema，让 items 表长出 embedding 列
+pnpm db:push
+
+# 3. 同一个 SQL 再跑一次，这回会建 HNSW 索引（依赖 embedding 列存在）
+psql "$DATABASE_URL" -f drizzle/0001_pgvector.sql
+
+# 4. 给历史 note 补 embedding
+curl "https://tinypa-xxx.vercel.app/api/debug/backfill-embeddings?secret=$CRON_SECRET"
+```
+
+默认 embedding 模型是 `nvidia/nv-embedqa-e5-v5`（1024 维）。想换模型就同时改：
+- `LLM_EMBED_MODEL` 环境变量
+- `lib/db/schema.ts` 里 `vector1024` 的维度数字
+- 然后重跑 db:push + backfill
 
 > 更严谨的做法是用 `pnpm db:generate` 生成 SQL 迁移后 `drizzle-kit migrate` 推，再把 `drizzle/` 目录提交。MVP 阶段 `db:push` 已经够用。
 

@@ -1,5 +1,6 @@
 import { db, messages, items } from "@/lib/db";
 import { getLLM } from "@/lib/llm/gemma";
+import { getEmbed } from "@/lib/llm/embedding";
 import { eq } from "drizzle-orm";
 
 export async function extractForMessage(messageId: string, userId: string, timezone: string) {
@@ -37,6 +38,23 @@ export async function extractForMessage(messageId: string, userId: string, timez
             tags: item.tags ?? [],
           })
           .returning();
+        if (item.type === "note") {
+          try {
+            const [vec] = await getEmbed().embed([item.content]);
+            if (vec && vec.length > 0) {
+              await db
+                .update(items)
+                .set({ embedding: vec })
+                .where(eq(items.id, row.id));
+              row.embedding = vec;
+            }
+          } catch (err) {
+            console.error("[extract] embed failed, note saved without embedding", {
+              itemId: row.id,
+              err: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
         inserted.push(row);
       }
     );
