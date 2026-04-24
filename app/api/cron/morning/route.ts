@@ -19,6 +19,11 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const targetUser = url.searchParams.get("user");
+  const whenParam = url.searchParams.get("when");
+  const when = whenParam ? new Date(whenParam) : new Date();
+  if (whenParam && Number.isNaN(when.getTime())) {
+    return NextResponse.json({ error: "bad_when" }, { status: 400 });
+  }
 
   const rows = targetUser
     ? await db.select().from(users).where(eq(users.id, targetUser))
@@ -27,11 +32,12 @@ export async function GET(req: NextRequest) {
   const results: { userId: string; sent: boolean; reason?: string }[] = [];
   for (const u of rows) {
     try {
-      const r = await sendMorningForUser(u.id);
+      const r = await sendMorningForUser(u.id, when);
       results.push({ userId: u.id, sent: r.sent, reason: r.reason });
     } catch (err) {
-      console.error("[cron/morning]", u.id, err);
-      results.push({ userId: u.id, sent: false, reason: "error" });
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[cron/morning]", u.id, msg);
+      results.push({ userId: u.id, sent: false, reason: msg });
     }
   }
   return NextResponse.json({ count: results.length, results });
