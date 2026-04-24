@@ -1,4 +1,4 @@
-import { toZonedTime, fromZonedTime, format as formatTz } from "date-fns-tz";
+import { toZonedTime, fromZonedTime, formatInTimeZone } from "date-fns-tz";
 import { startOfDay, endOfDay, addDays, formatISO } from "date-fns";
 
 export function dayRangeInTz(date: Date, timezone: string) {
@@ -21,12 +21,13 @@ export function yesterdayIsoDate(timezone: string, d: Date = new Date()) {
   return formatISO(addDays(zoned, -1), { representation: "date" });
 }
 
-// "2026-04-24T08:44:02+08:00 (Asia/Shanghai, 星期五)"
+// "2026-04-24T17:53:30+08:00 (Asia/Shanghai, 星期五)"
 // Passed to the LLM so it doesn't have to convert UTC to the user's zone
 // itself — llama-3.3-70b gets that step wrong on '今天晚上6点' roughly half
-// the time.
+// the time. Uses formatInTimeZone (not format) because the latter's timeZone
+// option silently no-ops in some paths, which left us shipping UTC as local.
 export function localNowForLLM(timezone: string, d: Date = new Date()) {
-  const iso = formatTz(d, "yyyy-MM-dd'T'HH:mm:ssXXX", { timeZone: timezone });
-  const weekday = formatTz(d, "EEEE", { timeZone: timezone });
+  const iso = formatInTimeZone(d, timezone, "yyyy-MM-dd'T'HH:mm:ssXXX");
+  const weekday = formatInTimeZone(d, timezone, "EEEE");
   return `${iso} (${timezone}, ${weekday})`;
 }
