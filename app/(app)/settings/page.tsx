@@ -2,6 +2,7 @@ import { auth, signOut } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import Link from "next/link";
 import { SettingsForm } from "./SettingsForm";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,14 @@ export default async function SettingsPage() {
         <div className="mb-1 font-medium text-ink">推送时间</div>
         每晚 22:07 自动生成复盘，次日 08:03 邮件推送早报（北京时间）。多时区自定义需要升级 Vercel Pro，目前 Hobby 档固定。
       </div>
+
+      <Link
+        href="/settings/llm-test"
+        className="mt-3 block rounded-xl border border-border bg-panel/60 p-4 text-xs text-mute hover:border-accent/50"
+      >
+        <div className="mb-1 font-medium text-ink">LLM 测试工具 →</div>
+        直接在浏览器里发请求到 NIM，测连接、延迟、不同模型和 prompt 的输出差异。
+      </Link>
 
       <form
         action={async () => {
