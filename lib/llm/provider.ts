@@ -3,7 +3,7 @@ import { z } from "zod";
 export const extractedItemSchema = z.object({
   type: z.enum(["todo", "note", "mood", "followup", "reply"]),
   content: z.string().min(1).max(500),
-  due_at: z.string().datetime().nullable().optional(),
+  due_at: z.string().datetime({ offset: true }).nullable().optional(),
   priority: z.number().int().min(1).max(3).optional(),
   tags: z.array(z.string().max(20)).max(5).optional(),
 });
