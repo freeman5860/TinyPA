@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db, items, users } from "@/lib/db";
-import { and, eq, gte, lte, or, isNull, desc, asc } from "drizzle-orm";
+import { and, eq, gte, lte, desc, asc } from "drizzle-orm";
 import { dayRangeInTz } from "@/lib/time";
 import { TodayClient } from "./TodayClient";
 
@@ -22,8 +22,7 @@ export default async function TodayPage() {
       and(
         eq(items.userId, session.user.id),
         eq(items.type, "todo"),
-        eq(items.status, "open"),
-        or(isNull(items.dueAt), lte(items.dueAt, end))
+        eq(items.status, "open")
       )
     )
     .orderBy(asc(items.priority), asc(items.dueAt));
