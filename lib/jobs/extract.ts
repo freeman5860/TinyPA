@@ -1,6 +1,7 @@
 import { db, messages, items } from "@/lib/db";
 import { getLLM } from "@/lib/llm/gemma";
 import { getEmbed } from "@/lib/llm/embedding";
+import { localNowForLLM } from "@/lib/time";
 import { eq } from "drizzle-orm";
 
 export async function extractForMessage(messageId: string, userId: string, timezone: string) {
@@ -15,7 +16,7 @@ export async function extractForMessage(messageId: string, userId: string, timez
     await llm.extract(
       {
         text: msg.rawText,
-        now: new Date().toISOString(),
+        now: localNowForLLM(timezone),
         timezone,
       },
       async (item) => {
