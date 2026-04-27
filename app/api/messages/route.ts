@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const rawLimit = Number(req.nextUrl.searchParams.get("limit") ?? 30);
+  const rawLimit = Number(req.nextUrl.searchParams.get("limit") ?? 15);
   const limit = Math.min(Math.max(rawLimit, 1), 100);
   const beforeParam = req.nextUrl.searchParams.get("before");
   const before = beforeParam ? new Date(beforeParam) : null;
