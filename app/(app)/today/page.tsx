@@ -27,6 +27,18 @@ export default async function TodayPage() {
     )
     .orderBy(asc(items.priority), asc(items.dueAt));
 
+  const openFollowups = await db
+    .select()
+    .from(items)
+    .where(
+      and(
+        eq(items.userId, session.user.id),
+        eq(items.type, "followup"),
+        eq(items.status, "open")
+      )
+    )
+    .orderBy(asc(items.createdAt));
+
   const todayItems = await db
     .select()
     .from(items)
@@ -43,6 +55,7 @@ export default async function TodayPage() {
     <TodayClient
       tz={tz}
       openTodos={serialize(openTodos)}
+      openFollowups={serialize(openFollowups)}
       todayItems={serialize(todayItems)}
     />
   );
