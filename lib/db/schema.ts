@@ -121,6 +121,7 @@ export const items = pgTable(
   (t) => ({
     userTypeStatusIdx: index("items_user_type_status_idx").on(t.userId, t.type, t.status),
     userDueIdx: index("items_user_due_idx").on(t.userId, t.dueAt),
+    messageIdx: index("items_message_idx").on(t.messageId),
   })
 );
 

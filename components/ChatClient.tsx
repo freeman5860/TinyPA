@@ -44,6 +44,8 @@ export default function ChatClient() {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStop = useRef<number>(0);
+  const msgsRef = useRef<Msg[]>([]);
+  msgsRef.current = msgs;
 
   useEffect(() => {
     refresh();
@@ -76,6 +78,44 @@ export default function ChatClient() {
     } catch {}
   }
 
+  // Thin poll: only the pending ids, not the whole history.
+  async function pollPending() {
+    const pendingIds = msgsRef.current
+      .filter((m) => m.pending && !m.id.startsWith("tmp-"))
+      .map((m) => m.id);
+    if (!pendingIds.length) return;
+    try {
+      const r = await fetch(
+        `/api/messages/poll?ids=${encodeURIComponent(pendingIds.join(","))}`,
+        { cache: "no-store" }
+      );
+      const d = await r.json();
+      if (!Array.isArray(d.messages)) return;
+      const byId = new Map<string, { replyText: string | null; processedAt: string | null; items: Item[] }>();
+      for (const m of d.messages) {
+        byId.set(m.id, {
+          replyText: m.replyText ?? null,
+          processedAt: m.processedAt ?? null,
+          items: m.items ?? [],
+        });
+      }
+      setMsgs((prev) =>
+        prev.map((m) => {
+          const fresh = byId.get(m.id);
+          if (!fresh) return m;
+          const done = !!fresh.processedAt;
+          return {
+            ...m,
+            replyText: fresh.replyText,
+            processedAt: fresh.processedAt,
+            items: fresh.items,
+            pending: done ? false : m.pending,
+          };
+        })
+      );
+    } catch {}
+  }
+
   function schedulePoll() {
     if (pollTimer.current) clearTimeout(pollTimer.current);
     if (Date.now() > pollStop.current) {
@@ -85,7 +125,7 @@ export default function ChatClient() {
       return;
     }
     pollTimer.current = setTimeout(async () => {
-      await refresh();
+      await pollPending();
       setMsgs((prev) => {
         const stillPending = prev.some((m) => m.pending);
         if (stillPending && Date.now() < pollStop.current) {

@@ -7,16 +7,19 @@ import { eq, desc, inArray } from "drizzle-orm";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const rawLimit = Number(req.nextUrl.searchParams.get("limit") ?? 30);
+  const limit = Math.min(Math.max(rawLimit, 1), 100);
 
   const msgRows = await db
     .select()
     .from(messages)
     .where(eq(messages.userId, session.user.id))
     .orderBy(desc(messages.createdAt))
-    .limit(50);
+    .limit(limit);
 
   const ordered = msgRows.reverse();
   const ids = ordered.map((m) => m.id);
