@@ -271,7 +271,7 @@ export default function ChatClient() {
         ref={scrollRef}
         onScroll={(e) => {
           const el = e.currentTarget;
-          if (el.scrollTop < 80 && hasMore && !loadingOlder) {
+          if (el.scrollTop < 400 && hasMore && !loadingOlder) {
             loadOlder();
           }
         }}
