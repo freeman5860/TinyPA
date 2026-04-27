@@ -93,7 +93,7 @@ export default function ChatClient() {
 
   async function refresh() {
     try {
-      const r = await fetch("/api/messages?limit=8", { cache: "no-store" });
+      const r = await fetch("/api/messages?limit=5", { cache: "no-store" });
       const d = await r.json();
       if (Array.isArray(d.messages)) {
         setHasMore(!!d.hasMore);
@@ -121,7 +121,7 @@ export default function ChatClient() {
     setLoadingOlder(true);
     try {
       const r = await fetch(
-        `/api/messages?limit=8&before=${encodeURIComponent(oldest.createdAt)}`,
+        `/api/messages?limit=5&before=${encodeURIComponent(oldest.createdAt)}`,
         { cache: "no-store" }
       );
       const d = await r.json();
@@ -269,6 +269,12 @@ export default function ChatClient() {
 
       <div
         ref={scrollRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          if (el.scrollTop < 80 && hasMore && !loadingOlder) {
+            loadOlder();
+          }
+        }}
         className="flex-1 overflow-y-auto px-4 py-4"
       >
         <div className="mx-auto flex max-w-xl flex-col gap-4">
