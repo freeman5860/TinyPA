@@ -93,7 +93,7 @@ export default function ChatClient() {
 
   async function refresh() {
     try {
-      const r = await fetch("/api/messages?limit=15", { cache: "no-store" });
+      const r = await fetch("/api/messages?limit=8", { cache: "no-store" });
       const d = await r.json();
       if (Array.isArray(d.messages)) {
         setHasMore(!!d.hasMore);
@@ -121,7 +121,7 @@ export default function ChatClient() {
     setLoadingOlder(true);
     try {
       const r = await fetch(
-        `/api/messages?limit=15&before=${encodeURIComponent(oldest.createdAt)}`,
+        `/api/messages?limit=8&before=${encodeURIComponent(oldest.createdAt)}`,
         { cache: "no-store" }
       );
       const d = await r.json();
