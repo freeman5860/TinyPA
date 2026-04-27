@@ -52,6 +52,10 @@ export default function ChatClient() {
   // When loadOlder prepends, capture pre-prepend (scrollHeight - scrollTop)
   // so we can restore exact reading position after the DOM grows.
   const restoreScrollRef = useRef<number | null>(null);
+  // True once we've done the initial jump-to-bottom after the first refresh.
+  // Before that flip, any scroll work is instant (no animation) so users
+  // don't see the 'top → bottom' slide every time they enter the chat tab.
+  const hasInitScrolledRef = useRef(false);
 
   useEffect(() => {
     refresh();
@@ -60,26 +64,31 @@ export default function ChatClient() {
     };
   }, []);
 
-  // Scroll to bottom ONLY when the newest message id changes (initial load,
-  // new send, reply arrival). Prepends don't change last id, so reader stays
-  // put.
-  useEffect(() => {
-    const lastId = msgs[msgs.length - 1]?.id ?? null;
-    if (lastId && lastId !== lastIdRef.current) {
-      lastIdRef.current = lastId;
-      const el = scrollRef.current;
-      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    } else if (!lastId) {
-      lastIdRef.current = null;
-    }
-  }, [msgs]);
-
-  // Restore scroll position after a prepend from loadOlder.
+  // One useLayoutEffect handles all three scroll cases synchronously before
+  // paint: prepend restore, initial jump, new-message smooth scroll.
   useLayoutEffect(() => {
     const el = scrollRef.current;
-    if (!el || restoreScrollRef.current === null) return;
-    el.scrollTop = el.scrollHeight - restoreScrollRef.current;
-    restoreScrollRef.current = null;
+    if (!el || msgs.length === 0) return;
+
+    if (restoreScrollRef.current !== null) {
+      el.scrollTop = el.scrollHeight - restoreScrollRef.current;
+      restoreScrollRef.current = null;
+      return;
+    }
+
+    const lastId = msgs[msgs.length - 1].id;
+
+    if (!hasInitScrolledRef.current) {
+      el.scrollTop = el.scrollHeight;
+      hasInitScrolledRef.current = true;
+      lastIdRef.current = lastId;
+      return;
+    }
+
+    if (lastId !== lastIdRef.current) {
+      lastIdRef.current = lastId;
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
   }, [msgs]);
 
   async function refresh() {
