@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 type Item = {
   id: string;
@@ -40,12 +40,18 @@ export default function ChatClient() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollStop = useRef<number>(0);
   const msgsRef = useRef<Msg[]>([]);
   msgsRef.current = msgs;
+  const lastIdRef = useRef<string | null>(null);
+  // When loadOlder prepends, capture pre-prepend (scrollHeight - scrollTop)
+  // so we can restore exact reading position after the DOM grows.
+  const restoreScrollRef = useRef<number | null>(null);
 
   useEffect(() => {
     refresh();
@@ -54,15 +60,34 @@ export default function ChatClient() {
     };
   }, []);
 
+  // Scroll to bottom ONLY when the newest message id changes (initial load,
+  // new send, reply arrival). Prepends don't change last id, so reader stays
+  // put.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [msgs.length]);
+    const lastId = msgs[msgs.length - 1]?.id ?? null;
+    if (lastId && lastId !== lastIdRef.current) {
+      lastIdRef.current = lastId;
+      const el = scrollRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else if (!lastId) {
+      lastIdRef.current = null;
+    }
+  }, [msgs]);
+
+  // Restore scroll position after a prepend from loadOlder.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || restoreScrollRef.current === null) return;
+    el.scrollTop = el.scrollHeight - restoreScrollRef.current;
+    restoreScrollRef.current = null;
+  }, [msgs]);
 
   async function refresh() {
     try {
-      const r = await fetch("/api/messages", { cache: "no-store" });
+      const r = await fetch("/api/messages?limit=30", { cache: "no-store" });
       const d = await r.json();
       if (Array.isArray(d.messages)) {
+        setHasMore(!!d.hasMore);
         setMsgs((prev) =>
           (d.messages as Msg[]).map((m) => {
             const local = prev.find((p) => p.id === m.id);
@@ -76,6 +101,37 @@ export default function ChatClient() {
         );
       }
     } catch {}
+  }
+
+  async function loadOlder() {
+    if (loadingOlder || !hasMore) return;
+    const oldest = msgsRef.current[0];
+    if (!oldest) return;
+    const el = scrollRef.current;
+    if (el) restoreScrollRef.current = el.scrollHeight - el.scrollTop;
+    setLoadingOlder(true);
+    try {
+      const r = await fetch(
+        `/api/messages?limit=30&before=${encodeURIComponent(oldest.createdAt)}`,
+        { cache: "no-store" }
+      );
+      const d = await r.json();
+      if (Array.isArray(d.messages)) {
+        setHasMore(!!d.hasMore);
+        setMsgs((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id));
+          const older = (d.messages as Msg[])
+            .filter((m) => !existingIds.has(m.id))
+            .map((m) => ({ ...m, pending: false, error: false }));
+          return [...older, ...prev];
+        });
+      }
+    } catch {
+      // swallow; user can scroll again
+      restoreScrollRef.current = null;
+    } finally {
+      setLoadingOlder(false);
+    }
   }
 
   // Thin poll: only the pending ids, not the whole history.
@@ -202,8 +258,32 @@ export default function ChatClient() {
         <p className="text-xs text-mute">说点什么吧，我在听。</p>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          if (el.scrollTop < 80 && hasMore && !loadingOlder) {
+            loadOlder();
+          }
+        }}
+        className="flex-1 overflow-y-auto px-4 py-4"
+      >
         <div className="mx-auto flex max-w-xl flex-col gap-4">
+          {msgs.length > 0 && (
+            <div className="flex justify-center text-xs text-mute">
+              {loadingOlder ? (
+                <span className="flex items-center gap-1.5">
+                  <Spinner /> 加载中…
+                </span>
+              ) : hasMore ? (
+                <button onClick={loadOlder} className="hover:text-ink">
+                  加载更多
+                </button>
+              ) : (
+                <span className="opacity-50">已经到最早了</span>
+              )}
+            </div>
+          )}
           {msgs.length === 0 && (
             <div className="mt-16 text-center text-sm text-mute">
               第一次来？

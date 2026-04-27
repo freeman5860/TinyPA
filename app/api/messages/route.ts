@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, messages, items, users } from "@/lib/db";
 import { extractForMessage } from "@/lib/jobs/extract";
-import { eq, desc, inArray } from "drizzle-orm";
+import { and, eq, desc, inArray, lt } from "drizzle-orm";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -13,11 +13,20 @@ export async function GET(req: NextRequest) {
 
   const rawLimit = Number(req.nextUrl.searchParams.get("limit") ?? 30);
   const limit = Math.min(Math.max(rawLimit, 1), 100);
+  const beforeParam = req.nextUrl.searchParams.get("before");
+  const before = beforeParam ? new Date(beforeParam) : null;
+  if (beforeParam && (before === null || Number.isNaN(before.getTime()))) {
+    return NextResponse.json({ error: "bad_before" }, { status: 400 });
+  }
 
   const msgRows = await db
     .select()
     .from(messages)
-    .where(eq(messages.userId, session.user.id))
+    .where(
+      before
+        ? and(eq(messages.userId, session.user.id), lt(messages.createdAt, before))
+        : eq(messages.userId, session.user.id)
+    )
     .orderBy(desc(messages.createdAt))
     .limit(limit);
 
@@ -52,7 +61,7 @@ export async function GET(req: NextRequest) {
   }
 
   const withItems = ordered.map((m) => ({ ...m, items: byMsg.get(m.id) ?? [] }));
-  return NextResponse.json({ messages: withItems });
+  return NextResponse.json({ messages: withItems, hasMore: msgRows.length >= limit });
 }
 
 export async function POST(req: NextRequest) {
