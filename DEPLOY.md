@@ -47,6 +47,29 @@ openssl rand -hex 32      # CRON_SECRET
 
 两个都记下来，等下贴 Vercel。
 
+### 0.4 生成 VAPID 密钥（浏览器推送）
+
+Web Push 要一对公私钥。公钥前端订阅时用，私钥后端签名。本地项目里已经装了 `web-push`，直接跑：
+
+```bash
+node -e "const wp = require('web-push'); console.log(JSON.stringify(wp.generateVAPIDKeys()))"
+```
+
+输出形如：
+```json
+{"publicKey":"BB...","privateKey":"VF..."}
+```
+
+对应三条 env：
+- `VAPID_PUBLIC_KEY` = `publicKey`
+- `VAPID_PRIVATE_KEY` = `privateKey`
+- `VAPID_SUBJECT` = `mailto:你的邮箱@example.com`（推送协议要一个联系方式）
+
+还要加一条 **公开**变量（前端订阅时用）：
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` = 同一个 `publicKey`
+
+> **不想开浏览器推送**就跳过这一步。morning cron 会自动降级到纯邮件。
+
 ---
 
 ## 1. 确认代码在 GitHub 上
@@ -73,6 +96,15 @@ git push                  # 如果有漏推
    | `MAIL_FROM` | `TinyPA <onboarding@resend.dev>` 或自有域 |
    | `NVIDIA_API_KEY` | `nvapi-xxx` |
    | `CRON_SECRET` | 0.3 生成的 hex |
+
+   想要浏览器推送的话，再加 4 条（0.4 生成的）：
+
+   | Key | Value |
+   |---|---|
+   | `VAPID_PUBLIC_KEY` | `publicKey` |
+   | `VAPID_PRIVATE_KEY` | `privateKey` |
+   | `VAPID_SUBJECT` | `mailto:你@example.com` |
+   | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 跟 `VAPID_PUBLIC_KEY` **完全一样** |
 
 4. 点 **Deploy**
 
@@ -207,7 +239,16 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 
 > 早报依赖当天的 digest，所以必须先跑 digest 再跑 morning。
 
-### 8.6 Cron 自动跑
+### 8.6 浏览器推送（可选）
+
+前提是 0.4 那四条 VAPID env 都配上了。
+
+1. 登录 TinyPA → **设置** 页，下方多出一块 **浏览器推送**
+2. 桌面 Chrome/Firefox/Edge：直接点 **开启推送** → 授权 → 按 **发一条测试** 看系统通知有没有弹出
+3. iOS：必须先 Safari → 分享 →「添加到主屏幕」，**从桌面图标打开**再来设置页（iOS 16.4+ 的 Web Push 只对已安装 PWA 开放）
+4. 开启后，次日 08:03 的早报会同时走邮件 + 浏览器通知。关掉只发邮件
+
+### 8.7 Cron 自动跑
 
 `vercel.json` 里配了两条每日 cron（UTC 时间）：
 
@@ -242,6 +283,9 @@ Vercel 会自动加 `Authorization: Bearer $CRON_SECRET` 头（前提是同名�
 | 今日 tab 出现你没说过的条目 | prompt 里的示例文本被模型当成内容泄漏了。确认 `lib/llm/prompts.ts` 已移除 few-shot 示例，并用 `gemma-4-31b-it` 做 extract |
 | 搜索 tab 语义搜索无命中 | Vercel Logs 搜 `[embed]`，大概率是 `NVIDIA_API_KEY` 格式错（应以 `nvapi-` 开头）；也可能是 HNSW 索引没建，但那只影响速度不影响结果 |
 | Cron 没跑 | Vercel → **Cron Jobs** tab 看记录；确认 `CRON_SECRET` 在环境变量里；刚部署要等到下一个调度时刻才首次触发，想立刻试就用 8.5 的 curl |
+| 设置页没看到"浏览器推送"按钮，或提示"未配置 VAPID_PUBLIC_KEY" | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` 没加；`NEXT_PUBLIC_` 前缀是打包期注入的，加完必须 **Redeploy** |
+| 浏览器订阅成功但测试推送收不到 | Vercel Logs 看 `[webpush]`；常见是 VAPID_SUBJECT 没带 `mailto:` 前缀、或公私钥配成两对不匹配的 |
+| iOS Safari 里按钮显示"需要先添加到主屏幕" | iOS 16.4+ 的 Web Push 只对 standalone PWA 开放，必须从桌面图标打开 |
 
 ---
 

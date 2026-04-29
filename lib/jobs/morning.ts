@@ -1,6 +1,7 @@
 import { db, users, digests, items } from "@/lib/db";
 import { and, eq, inArray, desc } from "drizzle-orm";
 import { resend, MAIL_FROM } from "@/lib/push/email";
+import { sendWebPushToUser } from "@/lib/push/webpush";
 import { yesterdayIsoDate } from "@/lib/time";
 
 export async function sendMorningForUser(userId: string, when: Date = new Date()) {
@@ -69,7 +70,25 @@ export async function sendMorningForUser(userId: string, when: Date = new Date()
     .set({ morningSentAt: new Date() })
     .where(eq(digests.id, digest.id));
 
-  return { sent: true };
+  // Fire-and-forget webpush alongside email — don't let push errors block.
+  const pushBody = topByStatus.length
+    ? `先做：${topByStatus
+        .slice(0, 3)
+        .map((t) => t.content)
+        .join("；")}`
+    : "今天没有特别着急的待办 ☕️";
+  try {
+    const pushResult = await sendWebPushToUser(userId, {
+      title: `TinyPA 早报 · ${new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}`,
+      body: pushBody.length > 120 ? pushBody.slice(0, 117) + "…" : pushBody,
+      url: "/today",
+      tag: `morning-${yDate}`,
+    });
+    return { sent: true, push: pushResult };
+  } catch (err) {
+    console.error("[morning] webpush failed", err);
+    return { sent: true, push: { sent: 0, pruned: 0, failed: 1 } };
+  }
 }
 
 function escapeHtml(s: string) {

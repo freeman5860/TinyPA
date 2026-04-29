@@ -1,4 +1,4 @@
-const CACHE = "tinypa-shell-v1";
+const CACHE = "tinypa-shell-v2";
 const SHELL = ["/", "/today", "/review", "/settings", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -47,4 +47,37 @@ self.addEventListener("fetch", (event) => {
       )
     );
   }
+});
+
+self.addEventListener("push", (event) => {
+  let data = { title: "TinyPA", body: "有一条新提醒", url: "/", tag: "tinypa" };
+  try {
+    if (event.data) data = { ...data, ...event.data.json() };
+  } catch {
+    if (event.data) data.body = event.data.text();
+  }
+  const opts = {
+    body: data.body,
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    tag: data.tag,
+    data: { url: data.url || "/" },
+  };
+  event.waitUntil(self.registration.showNotification(data.title, opts));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ("focus" in client) {
+          client.postMessage({ type: "navigate", url: targetUrl });
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    })
+  );
 });

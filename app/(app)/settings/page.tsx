@@ -4,6 +4,7 @@ import { db, users } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { SettingsForm } from "./SettingsForm";
+import { WebPushButton } from "@/components/WebPushButton";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export default async function SettingsPage() {
         <div className="mb-1 font-medium text-ink">推送时间</div>
         每晚 22:07 自动生成复盘，次日 08:03 邮件推送早报（北京时间）。多时区自定义需要升级 Vercel Pro，目前 Hobby 档固定。
       </div>
+
+      <WebPushButton vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
 
       <Link
         href="/settings/llm-test"
