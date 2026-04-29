@@ -30,13 +30,53 @@
    - **最快**：用沙盒 `onboarding@resend.dev`，只能发到注册 Resend 的那个邮箱（验证自己够用）
    - **正式**：**Domains** → **Add Domain**，加 3 条 DNS 记录（DKIM + SPF + MX），`MAIL_FROM` 填 `TinyPA <no-reply@your-domain>`
 
-### 0.2 NVIDIA NIM（Gemma + 嵌入模型）
+### 0.2 LLM Provider（必需）
 
-1. <https://build.nvidia.com/google/gemma-4> → 登录 → 右上 **Get API Key**
-2. 复制 `nvapi-xxx`，这是 `NVIDIA_API_KEY`
-3. 同一个 key 可以调 `nvidia/nv-embedqa-e5-v5`（语义搜索用 1024 维模型），不用单独申请
+TinyPA 的 extract / digest 可以跑在任何 OpenAI 兼容的 API 上，或者跑在 Anthropic Claude 上。**embedding 固定用 NVIDIA**（1024 维，换别的要重跑 backfill 且改 schema 维度），所以 `NVIDIA_API_KEY` 永远要有。
 
-> 新账号有免费额度。超出后按 token 计费，Dashboard 能看用量。
+挑一套用：
+
+#### 方案 A：NVIDIA NIM 跑 Llama 3.3 70B（默认，零成本起步）
+
+1. <https://build.nvidia.com> → 登录 → 右上 **Get API Key**
+2. 复制 `nvapi-xxx`，一个 key 同时覆盖 chat 和 embedding
+3. 对应 env：
+   ```
+   NVIDIA_API_KEY=nvapi-xxx
+   # LLM_PROVIDER 默认 openai-compat，不用写
+   # LLM_BASE_URL 默认 https://integrate.api.nvidia.com/v1，不用写
+   # LLM_EXTRACT_MODEL / LLM_DIGEST_MODEL 默认 meta/llama-3.3-70b-instruct，不用写
+   ```
+
+> 新账号有免费额度，对个人项目够用；超出按 token 计费。
+
+#### 方案 B：Anthropic Claude（想用原生 Claude、上限更高的路线）
+
+1. <https://console.anthropic.com> → **API Keys** → **Create Key**
+2. 复制 `sk-ant-xxx`
+3. 对应 env：
+   ```
+   LLM_PROVIDER=anthropic
+   ANTHROPIC_API_KEY=sk-ant-xxx
+   # LLM_EXTRACT_MODEL / LLM_DIGEST_MODEL 默认 claude-haiku-4-5，不用写
+   # 想用更好的模型：LLM_DIGEST_MODEL=claude-sonnet-4-6
+   NVIDIA_API_KEY=nvapi-xxx   # 仍然要留，embedding 用
+   ```
+
+> Anthropic provider 自动对 system prompt 打 prompt cache，5 分钟内重复调用 input tokens 便宜 ~10 倍。
+
+#### 方案 C：别的 OpenAI 兼容 API（OpenAI / OpenRouter / Together / Groq / SiliconFlow 等）
+
+换 baseURL + key + model 三条 env：
+
+```
+LLM_PROVIDER=openai-compat          # 或者不填，默认就是这个
+LLM_API_KEY=sk-xxx                  # 任何 OpenAI 兼容 key
+LLM_BASE_URL=https://api.openai.com/v1   # 换对应服务商的 URL
+LLM_EXTRACT_MODEL=gpt-4o-mini
+LLM_DIGEST_MODEL=gpt-4o-mini
+NVIDIA_API_KEY=nvapi-xxx             # embedding 仍然用
+```
 
 ### 0.3 本地生成两串随机密钥
 
@@ -118,8 +158,10 @@ git push                  # 如果有漏推
    | `AUTH_SECRET` | 0.3 生成的 base64 |
    | `RESEND_API_KEY` | `re_xxx` |
    | `MAIL_FROM` | `TinyPA <onboarding@resend.dev>` 或自有域 |
-   | `NVIDIA_API_KEY` | `nvapi-xxx` |
+   | `NVIDIA_API_KEY` | `nvapi-xxx`（embedding 必需） |
    | `CRON_SECRET` | 0.3 生成的 hex |
+
+   **LLM provider 按 0.2 挑的那套加 env**（方案 A 什么都不用加；方案 B/C 按那一节的说明加 `LLM_PROVIDER` / `ANTHROPIC_API_KEY` / `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_*_MODEL`）。
 
    想要浏览器推送的话，再加 4 条（0.4 生成的）：
 
