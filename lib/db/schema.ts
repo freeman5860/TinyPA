@@ -154,6 +154,15 @@ export const pushSubs = pgTable("push_subs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const telegramBindTokens = pgTable("telegram_bind_tokens", {
+  token: text("token").primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   messages: many(messages),
   items: many(items),

@@ -70,6 +70,30 @@ node -e "const wp = require('web-push'); console.log(JSON.stringify(wp.generateV
 
 > **不想开浏览器推送**就跳过这一步。morning cron 会自动降级到纯邮件。
 
+### 0.5 建 Telegram Bot（可选）
+
+想在 TG 里记录 + 收早报的话：
+
+1. TG 里搜 `@BotFather` → `/newbot` → 给 bot 起名和 username（`xxx_bot` 结尾）
+2. 完成后 BotFather 会发一串 `123456:ABC-DEF...` —— 这是 `TELEGRAM_BOT_TOKEN`
+3. 顺便设 bot 命令（让 TG 里显示菜单）：向 BotFather 发 `/setcommands` → 选你的 bot → 粘贴：
+   ```
+   start - 绑定 TinyPA 账号
+   unbind - 解绑当前对话
+   ```
+4. 再生成一串 webhook 密钥：
+   ```bash
+   openssl rand -hex 32   # TELEGRAM_WEBHOOK_SECRET
+   ```
+
+对应两条 env：
+- `TELEGRAM_BOT_TOKEN` = BotFather 给的 token
+- `TELEGRAM_WEBHOOK_SECRET` = 上面生成的 hex
+
+部署之后还要跑一条命令注册 webhook（见 8.7）。
+
+> **不想做 TG 集成**就跳过。设置页 Telegram 卡片会显示"后端未配置"，功能自动降级。
+
 ---
 
 ## 1. 确认代码在 GitHub 上
@@ -105,6 +129,13 @@ git push                  # 如果有漏推
    | `VAPID_PRIVATE_KEY` | `privateKey` |
    | `VAPID_SUBJECT` | `mailto:你@example.com` |
    | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 跟 `VAPID_PUBLIC_KEY` **完全一样** |
+
+   想要 Telegram 集成的话，再加 2 条（0.5 生成的）：
+
+   | Key | Value |
+   |---|---|
+   | `TELEGRAM_BOT_TOKEN` | BotFather 给的 `123456:ABC...` |
+   | `TELEGRAM_WEBHOOK_SECRET` | 0.5 生成的 hex |
 
 4. 点 **Deploy**
 
@@ -248,7 +279,27 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 3. iOS：必须先 Safari → 分享 →「添加到主屏幕」，**从桌面图标打开**再来设置页（iOS 16.4+ 的 Web Push 只对已安装 PWA 开放）
 4. 开启后，次日 08:03 的早报会同时走邮件 + 浏览器通知。关掉只发邮件
 
-### 8.7 Cron 自动跑
+### 8.7 Telegram 集成（可选）
+
+前提是 0.5 那两条 env 都配上了，并且已经做过部署（否则下面的 URL 还不存在）。
+
+1. **注册 webhook**（让 Telegram 把消息推到你的 Vercel 域名）：
+   ```bash
+   curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+     -H "content-type: application/json" \
+     -d "{\"url\":\"https://<your-domain>/api/telegram/webhook\",\"secret_token\":\"$TELEGRAM_WEBHOOK_SECRET\"}"
+   ```
+   返回 `{"ok":true,"result":true,"description":"Webhook was set"}` 就成。
+2. TG 里搜自己的 bot → 发 `/start` → 应该收到"请到网页版生成 token"的提示。收不到就看 `8.7` 最后一行的排查。
+3. TinyPA 设置页下方出现 **Telegram 绑定** 卡片 → 点"生成绑定码" → 点"打开 Telegram" 链接
+4. TG 里 bot 会收到一条 `/start xxxx` 消息 → 按回车发送 → 收到"绑定成功 ✅"
+5. 设置页卡片自动刷新成 "@yourusername · 已绑定"
+6. 在 bot 对话里随便发一句话（比如"明天下午3点开会要准备财报"）→ 几秒后 bot 回"已整理：1 个待办 ✨"
+7. 回网页，今日 tab 能看到这条 todo
+
+> 排查：webhook 没反应时 `curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getWebhookInfo"` 看 `last_error_message` 字段。401 → secret 没对上；404 → URL 写错了。
+
+### 8.8 Cron 自动跑
 
 `vercel.json` 里配了两条每日 cron（UTC 时间）：
 
@@ -286,6 +337,9 @@ Vercel 会自动加 `Authorization: Bearer $CRON_SECRET` 头（前提是同名�
 | 设置页没看到"浏览器推送"按钮，或提示"未配置 VAPID_PUBLIC_KEY" | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` 没加；`NEXT_PUBLIC_` 前缀是打包期注入的，加完必须 **Redeploy** |
 | 浏览器订阅成功但测试推送收不到 | Vercel Logs 看 `[webpush]`；常见是 VAPID_SUBJECT 没带 `mailto:` 前缀、或公私钥配成两对不匹配的 |
 | iOS Safari 里按钮显示"需要先添加到主屏幕" | iOS 16.4+ 的 Web Push 只对 standalone PWA 开放，必须从桌面图标打开 |
+| Telegram 设置卡片显示"后端没有配置" | `TELEGRAM_BOT_TOKEN` 没加或加错；注意 Redeploy |
+| Telegram 里 `/start <token>` 提示"无效或已过期" | token 只有 5 分钟有效期，过期了重新生成就行 |
+| webhook 注册成功但 bot 收消息没反应 | `curl .../getWebhookInfo` 看 `last_error_message`；401 是 `TELEGRAM_WEBHOOK_SECRET` 前后不一致 |
 
 ---
 

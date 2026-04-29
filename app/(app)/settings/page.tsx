@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { SettingsForm } from "./SettingsForm";
 import { WebPushButton } from "@/components/WebPushButton";
+import { TelegramBindCard } from "@/components/TelegramBindCard";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,8 @@ export default async function SettingsPage() {
       </div>
 
       <WebPushButton vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
+
+      <TelegramBindCard />
 
       <Link
         href="/settings/llm-test"

@@ -2,6 +2,7 @@ import { db, users, digests, items } from "@/lib/db";
 import { and, eq, inArray, desc } from "drizzle-orm";
 import { resend, MAIL_FROM } from "@/lib/push/email";
 import { sendWebPushToUser } from "@/lib/push/webpush";
+import { sendTelegramToUser } from "@/lib/push/telegram";
 import { yesterdayIsoDate } from "@/lib/time";
 
 export async function sendMorningForUser(userId: string, when: Date = new Date()) {
@@ -70,25 +71,32 @@ export async function sendMorningForUser(userId: string, when: Date = new Date()
     .set({ morningSentAt: new Date() })
     .where(eq(digests.id, digest.id));
 
-  // Fire-and-forget webpush alongside email — don't let push errors block.
+  // Fire-and-forget webpush + telegram alongside email — don't let push errors block.
   const pushBody = topByStatus.length
     ? `先做：${topByStatus
         .slice(0, 3)
         .map((t) => t.content)
         .join("；")}`
     : "今天没有特别着急的待办 ☕️";
-  try {
-    const pushResult = await sendWebPushToUser(userId, {
-      title: `TinyPA 早报 · ${new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}`,
+  const title = `TinyPA 早报 · ${new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}`;
+
+  const [webpushResult, telegramResult] = await Promise.all([
+    sendWebPushToUser(userId, {
+      title,
       body: pushBody.length > 120 ? pushBody.slice(0, 117) + "…" : pushBody,
       url: "/today",
       tag: `morning-${yDate}`,
-    });
-    return { sent: true, push: pushResult };
-  } catch (err) {
-    console.error("[morning] webpush failed", err);
-    return { sent: true, push: { sent: 0, pruned: 0, failed: 1 } };
-  }
+    }).catch((err) => {
+      console.error("[morning] webpush failed", err);
+      return { sent: 0, pruned: 0, failed: 1 };
+    }),
+    sendTelegramToUser(userId, `🌅 ${title}\n\n${pushBody}\n\n昨日复盘：\n${digest.summaryMd}`).catch((err) => {
+      console.error("[morning] telegram failed", err);
+      return { sent: 0, pruned: 0, failed: 1 };
+    }),
+  ]);
+
+  return { sent: true, push: webpushResult, telegram: telegramResult };
 }
 
 function escapeHtml(s: string) {
