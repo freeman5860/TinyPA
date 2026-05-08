@@ -294,10 +294,35 @@ export default function ChatClient() {
             </div>
           )}
           {msgs.length === 0 && (
-            <div className="mt-16 text-center text-sm text-mute">
-              第一次来？
-              <br />
-              试试"明天下午3点开会要准备财报"或"今天有点累"。
+            <div className="mt-6 flex flex-col gap-3">
+              <div className="flex items-start gap-2">
+                <AssistantAvatar />
+                <div className="max-w-[90%] rounded-2xl rounded-tl-md border border-border bg-panel px-4 py-3">
+                  <div className="text-[15px] leading-relaxed text-ink">
+                    你好，我是 TinyPA。
+                    <br />
+                    把脑子里的碎碎念丢给我，我会帮你拆成<span className="text-accent">待办</span>、<span className="text-emerald-300">笔记</span>、<span className="text-pink-300">心情</span>、<span className="text-amber-300">待跟进</span>。晚上 22 点会给你写复盘，第二天早上 8 点发一份早报。
+                  </div>
+                </div>
+              </div>
+              <div className="pl-10 text-xs text-mute">试试这些：</div>
+              {[
+                "明天下午3点开会要准备财报；老婆说晚上吃火锅；最近睡眠不太好。",
+                "周末要去看牙医；记得给妈妈打电话；想学一下 React Server Components。",
+                "今天有点累，不想写代码了。",
+              ].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    setText(s);
+                    taRef.current?.focus();
+                  }}
+                  className="ml-10 max-w-[85%] rounded-xl border border-border bg-panel/40 px-3 py-2 text-left text-sm text-ink/80 hover:border-accent/40 hover:bg-panel"
+                >
+                  {s}
+                </button>
+              ))}
             </div>
           )}
           {msgs.map((m) => (
