@@ -1,10 +1,11 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
+import { ipAuthLimit, safeLimit } from "@/lib/ratelimit";
 
 const { auth: edgeAuth } = NextAuth(authConfig);
 
-export default edgeAuth((req) => {
+export default edgeAuth(async (req) => {
   const { nextUrl } = req;
   const isAuth = !!req.auth;
   const isLoginPage = nextUrl.pathname === "/login";
@@ -18,6 +19,18 @@ export default edgeAuth((req) => {
     nextUrl.pathname === "/icon.svg" ||
     nextUrl.pathname.startsWith("/icons/") ||
     nextUrl.pathname.startsWith("/_next");
+
+  if (
+    req.method === "POST" &&
+    nextUrl.pathname === "/api/auth/signin/email"
+  ) {
+    const fwd = req.headers.get("x-forwarded-for") ?? "";
+    const ip = fwd.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+    const { allowed } = await safeLimit(ipAuthLimit, ip, "ip-auth");
+    if (!allowed) {
+      return new NextResponse("Too many requests", { status: 429 });
+    }
+  }
 
   if (isApiAuth || isCron || isDebug || isPublicAsset || isConfirmPage) return NextResponse.next();
 

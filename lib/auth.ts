@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { users, accounts, sessions, verificationTokens } from "@/lib/db/schema";
 import { resend, MAIL_FROM } from "@/lib/push/email";
 import { authConfig } from "@/auth.config";
+import { emailAuthLimit, safeLimit } from "@/lib/ratelimit";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -20,6 +21,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       type: "email",
       maxAge: 60 * 15,
       async sendVerificationRequest({ identifier, url }) {
+        const normalized = identifier.trim().toLowerCase();
+        const { allowed } = await safeLimit(emailAuthLimit, normalized, "email-auth");
+        if (!allowed) {
+          console.warn("[auth.email] rate limited", { to: normalized });
+          throw new Error("RateLimited: too many magic-link requests for this email");
+        }
+
         // Gmail and other providers GET-prefetch links in emails to scan them,
         // which consumes the one-time token before the user clicks. Rewrite the
         // email link to a static confirm page; user clicks "confirm" there to

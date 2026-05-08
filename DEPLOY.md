@@ -199,6 +199,30 @@ git push                  # 如果有漏推
 
 ---
 
+## 3.5. 开 Upstash Redis（限流 + 每日消息上限）
+
+开放注册后必须加的闸门：防爬虫刷 magic link 和单用户刷 LLM 额度。
+
+1. Vercel 项目 → **Storage** tab → **Create Database** → **Upstash** → **Redis**
+2. 名字 `tinypa-redis`，region 选 **us-east-1 (N. Virginia)**（和计算 / DB 同区）
+3. **Connect Project** 勾上 Production / Preview / Development（每个环境独立实例，互不污染）
+4. 点 **Create**
+
+回 **Settings → Environment Variables** 核对，应多出 `UPSTASH_REDIS_REST_URL`、`UPSTASH_REDIS_REST_TOKEN`，Source 列标 "Upstash"。
+
+**不配也能跑**：代码走 fail-open，没有 Redis 时所有限流放行，仅打 warn。上生产**必须开**。
+
+默认限额（可用这几条 env 覆盖）：
+
+| Env | 默认 | 含义 |
+|---|---|---|
+| `TINYPA_IP_AUTH_LIMIT` | 20 | 每 IP 每小时 magic-link 请求 |
+| `TINYPA_EMAIL_AUTH_LIMIT` | 5 | 每邮箱每 10 分钟 magic-link 请求 |
+| `TINYPA_BURST_MSG_LIMIT` | 30 | 每用户每分钟 POST /api/messages |
+| `TINYPA_DAILY_MSG_LIMIT` | 200 | 每用户每本地自然日消息数；超出仍入库但不跑 LLM |
+
+---
+
 ## 4. 开 pgvector 扩展（Neon SQL Editor）
 
 `/notes` 的语义搜索依赖 `vector` 扩展，Neon 默认不开。**必须在 db:push 之前开**，否则 Drizzle 建 `embedding vector(1024)` 会报 `type "vector" does not exist`。

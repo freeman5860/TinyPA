@@ -2,7 +2,11 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { auth } from "@/lib/auth";
 import { db, messages, items, users } from "@/lib/db";
 import { extractForMessage } from "@/lib/jobs/extract";
+import { safeLimit, userMsgBurstLimit } from "@/lib/ratelimit";
+import { checkAndIncrMessageQuota } from "@/lib/quota";
 import { and, eq, desc, inArray, lt } from "drizzle-orm";
+
+const QUOTA_REPLY = "今日额度已满，明天见。";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -73,9 +77,33 @@ export async function POST(req: NextRequest) {
   if (!text) return NextResponse.json({ error: "empty" }, { status: 400 });
   if (text.length > 4000) return NextResponse.json({ error: "too_long" }, { status: 400 });
 
-  const [user] = await db.select().from(users).where(eq(users.id, session.user.id));
-  const timezone = user?.timezone ?? "Asia/Shanghai";
   const userId = session.user.id;
+
+  const burst = await safeLimit(userMsgBurstLimit, userId, "msg-burst");
+  if (!burst.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited", scope: "burst", reset: burst.reset },
+      { status: 429 },
+    );
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  const timezone = user?.timezone ?? "Asia/Shanghai";
+
+  const quota = await checkAndIncrMessageQuota(userId, timezone);
+  if (!quota.ok) {
+    const [msg] = await db
+      .insert(messages)
+      .values({
+        userId,
+        rawText: text,
+        replyText: QUOTA_REPLY,
+        processedAt: new Date(),
+      })
+      .returning();
+    console.warn("[messages] quota exceeded", { userId, used: quota.used, limit: quota.limit });
+    return NextResponse.json({ message: { ...msg, items: [] }, pending: false, quotaExceeded: true });
+  }
 
   const [msg] = await db
     .insert(messages)
