@@ -3,6 +3,7 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import { db, messages, pushSubs, telegramBindTokens, users } from "@/lib/db";
 import { sendTelegramMessage, type TelegramEndpoint } from "@/lib/push/telegram";
 import { extractForMessage } from "@/lib/jobs/extract";
+import * as Sentry from "@sentry/nextjs";
 
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
@@ -166,6 +167,11 @@ export async function POST(req: NextRequest) {
       console.error("[telegram] extract failed", {
         msgId: stored.id,
         err: err instanceof Error ? err.message : String(err),
+      });
+      Sentry.captureException(err, {
+        tags: { component: "telegram.extract" },
+        extra: { msgId: stored.id },
+        user: { id: sub.userId },
       });
       await sendTelegramMessage(chatId, "已记录原文，但 AI 整理失败了，可以到网页上查看。");
     } finally {

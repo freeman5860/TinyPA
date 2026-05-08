@@ -223,6 +223,27 @@ git push                  # 如果有漏推
 
 ---
 
+## 3.6. 开 Sentry（错误追踪）
+
+生产出错一键查根因。PII 已在 `lib/sentry-scrub.ts` 清洗：用户消息内容、email、cookies、query string 都不会进 Sentry。
+
+1. Vercel 项目 → **Integrations** → Browse Marketplace → **Sentry** → Install
+2. 授权 Sentry 账号（没就注册，免费档 5k events/月够用）
+3. Create new project → Platform `Next.js`，项目名 `tinypa`
+4. Connect Project 勾 `TinyPA`，Environments 全勾
+5. 完成后 Vercel 自动注入：`NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_AUTH_TOKEN` / `SENTRY_ORG` / `SENTRY_PROJECT`
+
+**不配也能跑**：代码 `enabled: !!process.env.NEXT_PUBLIC_SENTRY_DSN`，DSN 缺失时完全静默。
+
+已接入的错误路径（其他 `console.error/warn` 是预期行为，没接入避免噪音）：
+- `lib/auth.ts` Resend 发信失败（用户登不进来）
+- `app/api/cron/digest` / `app/api/cron/morning` 每日任务失败
+- `lib/jobs/extract.ts` 抽取流中断
+- `lib/push/webpush.ts` 推送失败（排除 404/410 这种正常订阅失效）
+- `app/api/telegram/webhook` TG 抽取失败
+
+---
+
 ## 4. 开 pgvector 扩展（Neon SQL Editor）
 
 `/notes` 的语义搜索依赖 `vector` 扩展，Neon 默认不开。**必须在 db:push 之前开**，否则 Drizzle 建 `embedding vector(1024)` 会报 `type "vector" does not exist`。

@@ -3,6 +3,7 @@ import { getLLM } from "@/lib/llm/gemma";
 import { getEmbed } from "@/lib/llm/embedding";
 import { localNowForLLM } from "@/lib/time";
 import { eq } from "drizzle-orm";
+import * as Sentry from "@sentry/nextjs";
 
 export async function extractForMessage(messageId: string, userId: string, timezone: string) {
   const [msg] = await db.select().from(messages).where(eq(messages.id, messageId));
@@ -65,6 +66,11 @@ export async function extractForMessage(messageId: string, userId: string, timez
       messageId,
       count: inserted.length,
       err: err instanceof Error ? err.message : String(err),
+    });
+    Sentry.captureException(err, {
+      tags: { component: "extract", phase: "stream" },
+      extra: { messageId, partialCount: inserted.length },
+      user: { id: userId },
     });
   }
 

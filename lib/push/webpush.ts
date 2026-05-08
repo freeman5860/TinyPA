@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, pushSubs } from "@/lib/db";
+import * as Sentry from "@sentry/nextjs";
 
 let configured = false;
 
@@ -71,6 +72,10 @@ export async function sendWebPushToUser(
         } else {
           failed++;
           console.error("[webpush] send failed", { id: row.id, status: e.statusCode, message: e.message });
+          Sentry.captureException(err, {
+            tags: { component: "webpush" },
+            extra: { statusCode: e.statusCode, subId: row.id },
+          });
         }
       }
     })

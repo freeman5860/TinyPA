@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, users } from "@/lib/db";
 import { generateDigestForUser } from "@/lib/jobs/digest";
 import { eq } from "drizzle-orm";
+import * as Sentry from "@sentry/nextjs";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -33,6 +34,10 @@ export async function GET(req: NextRequest) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[cron/digest]", u.id, { ms: Date.now() - t0, err: msg });
+      Sentry.captureException(err, {
+        tags: { component: "cron.digest" },
+        user: { id: u.id },
+      });
       results.push({ userId: u.id, ran: false, reason: msg });
     }
   }

@@ -5,6 +5,7 @@ import { users, accounts, sessions, verificationTokens } from "@/lib/db/schema";
 import { resend, MAIL_FROM } from "@/lib/push/email";
 import { authConfig } from "@/auth.config";
 import { emailAuthLimit, safeLimit } from "@/lib/ratelimit";
+import * as Sentry from "@sentry/nextjs";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -58,6 +59,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             from: MAIL_FROM,
             name: error.name,
             message: error.message,
+          });
+          Sentry.captureException(new Error(`Resend error: ${error.name}: ${error.message}`), {
+            tags: { component: "auth.email", provider: "resend" },
           });
           throw new Error(`Resend error: ${error.name}: ${error.message}`);
         }
