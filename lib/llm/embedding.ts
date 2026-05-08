@@ -20,18 +20,15 @@ const embedFetch: typeof fetch = (input, init) =>
     { ...(init as Parameters<typeof undiciFetch>[1]), dispatcher: embedAgent }
   ) as unknown as Promise<Response>;
 
-const EMBED_MODEL = process.env.LLM_EMBED_MODEL ?? "nvidia/nv-embedqa-e5-v5";
+const EMBED_MODEL = process.env.LLM_EMBED_MODEL ?? "gemini-embedding-001";
 const EMBED_BASE_URL =
   process.env.LLM_EMBED_BASE_URL ??
   process.env.LLM_BASE_URL ??
-  "https://integrate.api.nvidia.com/v1";
+  "https://generativelanguage.googleapis.com/v1beta/openai/";
 export const EMBED_DIM = 1024;
 
 function makeClient() {
-  const apiKey =
-    process.env.LLM_EMBED_API_KEY ||
-    process.env.LLM_API_KEY ||
-    process.env.NVIDIA_API_KEY;
+  const apiKey = process.env.LLM_EMBED_API_KEY || process.env.LLM_API_KEY;
   if (!apiKey) throw new Error("LLM_EMBED_API_KEY / LLM_API_KEY is not set");
   return new OpenAI({
     apiKey,
@@ -46,7 +43,7 @@ export interface EmbeddingProvider {
   embed(texts: string[]): Promise<number[][]>;
 }
 
-class NimEmbeddingProvider implements EmbeddingProvider {
+class GeminiEmbeddingProvider implements EmbeddingProvider {
   async embed(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return [];
     const client = makeClient();
@@ -56,10 +53,8 @@ class NimEmbeddingProvider implements EmbeddingProvider {
       model: EMBED_MODEL,
       input: texts,
       encoding_format: "float",
-      // NIM's embedqa models want an input_type hint. The SDK passes
-      // unknown fields through to the HTTP body.
-      input_type: "passage",
-    } as unknown as Parameters<typeof client.embeddings.create>[0]);
+      dimensions: EMBED_DIM,
+    });
     const vectors = res.data
       .sort((a, b) => a.index - b.index)
       .map((d) => d.embedding as number[]);
@@ -74,29 +69,10 @@ class NimEmbeddingProvider implements EmbeddingProvider {
 
 let singleton: EmbeddingProvider | null = null;
 export function getEmbed(): EmbeddingProvider {
-  if (!singleton) singleton = new NimEmbeddingProvider();
+  if (!singleton) singleton = new GeminiEmbeddingProvider();
   return singleton;
 }
 
 export function embedQuery(text: string): Promise<number[][]> {
-  // Query-side wants a different input_type on NIM, but since the model
-  // is symmetric (e5), passage/query difference is small; call once with
-  // input_type=query via a dedicated path so search gets tuned embedding.
-  return new QueryEmbeddingProvider().embed([text]);
-}
-
-class QueryEmbeddingProvider implements EmbeddingProvider {
-  async embed(texts: string[]): Promise<number[][]> {
-    if (texts.length === 0) return [];
-    const client = makeClient();
-    const res = await client.embeddings.create({
-      model: EMBED_MODEL,
-      input: texts,
-      encoding_format: "float",
-      input_type: "query",
-    } as unknown as Parameters<typeof client.embeddings.create>[0]);
-    return res.data
-      .sort((a, b) => a.index - b.index)
-      .map((d) => d.embedding as number[]);
-  }
+  return getEmbed().embed([text]);
 }
