@@ -44,6 +44,9 @@ export default async function LoginPage({
             >
               发送登录链接
             </button>
+            <p className="pt-1 text-center text-xs text-mute">
+              继续即表示同意 <a href="/terms" className="underline hover:text-ink">服务条款</a> 和 <a href="/privacy" className="underline hover:text-ink">隐私政策</a>。
+            </p>
           </form>
         )}
       </div>

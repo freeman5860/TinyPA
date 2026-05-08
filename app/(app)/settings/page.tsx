@@ -6,6 +6,7 @@ import Link from "next/link";
 import { SettingsForm } from "./SettingsForm";
 import { WebPushButton } from "@/components/WebPushButton";
 import { TelegramBindCard } from "@/components/TelegramBindCard";
+import { AccountActions } from "@/components/AccountActions";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,14 @@ export default async function SettingsPage() {
         <div className="mb-1 font-medium text-ink">LLM 测试工具 →</div>
         直接在浏览器里发请求到 NIM，测连接、延迟、不同模型和 prompt 的输出差异。
       </Link>
+
+      <AccountActions email={user?.email ?? ""} />
+
+      <div className="mt-6 flex justify-center gap-4 text-xs text-mute">
+        <Link href="/privacy" className="underline hover:text-ink">隐私政策</Link>
+        <span>·</span>
+        <Link href="/terms" className="underline hover:text-ink">服务条款</Link>
+      </div>
 
       <form
         action={async () => {

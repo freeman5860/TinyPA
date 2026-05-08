@@ -25,7 +25,19 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ user: updated });
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id || !session.user.email) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const confirmEmail = typeof body.confirmEmail === "string" ? body.confirmEmail.trim().toLowerCase() : "";
+  if (confirmEmail !== session.user.email.toLowerCase()) {
+    return NextResponse.json({ error: "confirm_email_mismatch" }, { status: 400 });
+  }
+
+  await db.delete(users).where(eq(users.id, session.user.id));
   await signOut({ redirect: false });
   return NextResponse.json({ ok: true });
 }

@@ -10,6 +10,7 @@ export default edgeAuth(async (req) => {
   const isAuth = !!req.auth;
   const isLoginPage = nextUrl.pathname === "/login";
   const isConfirmPage = nextUrl.pathname === "/auth/confirm";
+  const isLegalPage = nextUrl.pathname === "/privacy" || nextUrl.pathname === "/terms";
   const isApiAuth = nextUrl.pathname.startsWith("/api/auth");
   const isCron = nextUrl.pathname.startsWith("/api/cron");
   const isDebug = nextUrl.pathname.startsWith("/api/debug");
@@ -32,7 +33,7 @@ export default edgeAuth(async (req) => {
     }
   }
 
-  if (isApiAuth || isCron || isDebug || isPublicAsset || isConfirmPage) return NextResponse.next();
+  if (isApiAuth || isCron || isDebug || isPublicAsset || isConfirmPage || isLegalPage) return NextResponse.next();
 
   if (!isAuth && !isLoginPage) {
     const url = nextUrl.clone();
