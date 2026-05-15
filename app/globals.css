@@ -4,8 +4,8 @@
 
 html,
 body {
-  background: #0b0b0c;
-  color: #e8e8ea;
+  background: #0e0805;
+  color: #ede1cb;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -17,4 +17,24 @@ body {
 
 body {
   min-height: 100dvh;
+}
+
+/* Tree-hole dusk scene background — used by TreeScene wrapper */
+.dusk-sky {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 95%, rgba(244, 184, 96, 0.55) 0%, transparent 60%),
+    linear-gradient(
+      to bottom,
+      #2d1b4e 0%,
+      #4a2654 35%,
+      #7a3a5c 60%,
+      #c8632e 82%,
+      #e8783c 92%,
+      #3a2818 100%
+    );
+}
+
+/* Sun glow halo behind the disc */
+.sun-halo {
+  background: radial-gradient(circle, rgba(245, 197, 75, 0.95) 0%, rgba(244, 184, 96, 0.35) 40%, transparent 70%);
 }

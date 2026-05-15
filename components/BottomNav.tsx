@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 
 const tabs = [
-  { href: "/", label: "聊天", icon: "chat" },
+  { href: "/", label: "树洞", icon: "chat" },
   { href: "/today", label: "今日", icon: "today" },
   { href: "/notes", label: "搜索", icon: "search" },
-  { href: "/review", label: "复盘", icon: "review" },
+  { href: "/review", label: "生长志", icon: "review" },
   { href: "/settings", label: "设置", icon: "settings" },
 ] as const;
 
@@ -46,7 +46,7 @@ export function BottomNav() {
 }
 
 function Icon({ name, active }: { name: string; active: boolean }) {
-  const stroke = active ? "#7c83ff" : "#8b8b93";
+  const stroke = active ? "#f5a85e" : "#9a8466";
   const common = { width: 22, height: 22, fill: "none", stroke, strokeWidth: 1.8 };
   switch (name) {
     case "chat":

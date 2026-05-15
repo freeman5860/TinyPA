@@ -5,9 +5,9 @@ import { eq, inArray, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-// Thin endpoint for chat polling: returns only the message ids you ask for,
-// with replyText / processedAt / items. ~1-2 rows per call instead of the
-// full 50 that GET /api/messages returns. Used by ChatClient while waiting
+// Thin endpoint for hole-input polling: returns only the message ids you ask
+// for, with replyText / processedAt / items. ~1-2 rows per call instead of the
+// full 50 that GET /api/messages returns. Used by HoleInput while waiting
 // for after() extraction to finish.
 export async function GET(req: NextRequest) {
   const session = await auth();

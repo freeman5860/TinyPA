@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import clsx from "clsx";
 import { ItemEditSheet, EditableItem } from "@/components/ItemEditSheet";
+import { TypeIcon } from "@/components/tree/TypeIcon";
 
 type Item = {
   id: string;
@@ -17,17 +18,10 @@ type Item = {
 };
 
 const typeLabel: Record<Item["type"], string> = {
-  todo: "待办",
-  note: "笔记",
-  mood: "心情",
-  followup: "待跟进",
-};
-
-const typeColor: Record<Item["type"], string> = {
-  todo: "bg-accent/15 text-accent",
-  note: "bg-emerald-500/15 text-emerald-300",
-  mood: "bg-pink-500/15 text-pink-300",
-  followup: "bg-amber-500/15 text-amber-300",
+  todo: "果实",
+  note: "叶子",
+  mood: "花朵",
+  followup: "嫩芽",
 };
 
 export function TodayClient({
@@ -114,7 +108,7 @@ export function TodayClient({
   return (
     <div className="mx-auto max-w-xl px-4 py-4">
       <header className="mb-4">
-        <h1 className="text-xl font-semibold">今日</h1>
+        <h1 className="text-xl font-semibold text-dusk-glow">今日新生</h1>
         <p className="text-xs text-mute">
           {new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })}
           <span className="ml-2 opacity-60">{tz}</span>
@@ -122,13 +116,14 @@ export function TodayClient({
       </header>
 
       <section>
-        <h2 className="mb-2 text-sm font-medium text-mute">
-          待办 · {todos.filter((t) => t.status === "open").length} 项
+        <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-mute">
+          <TypeIcon type="todo" className="h-4 w-4" />
+          果实 · {todos.filter((t) => t.status === "open").length} 项
         </h2>
         <ul className="flex flex-col gap-1.5">
           {todos.length === 0 && (
             <li className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-mute">
-              目前没有未完成的待办。去聊天页记一些吧。
+              枝头还没结果，去树洞说点什么吧。
             </li>
           )}
           {todos.map((t) => (
@@ -196,8 +191,9 @@ export function TodayClient({
       </section>
 
       <section className="mt-8">
-        <h2 className="mb-2 text-sm font-medium text-mute">
-          待跟进 · {followups.length} 项
+        <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-mute">
+          <TypeIcon type="followup" className="h-4 w-4" />
+          嫩芽 · {followups.length} 项
         </h2>
         <ul className="flex flex-col gap-1.5">
           {followups.length === 0 && (
@@ -215,9 +211,7 @@ export function TodayClient({
                 key={f.id}
                 className="flex items-start gap-3 rounded-xl border border-border bg-panel p-3"
               >
-                <span className="mt-0.5 shrink-0 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-300">
-                  跟进
-                </span>
+                <TypeIcon type="followup" className="mt-0.5 h-5 w-5 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="text-[15px]">{f.content}</div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
@@ -266,11 +260,11 @@ export function TodayClient({
       </section>
 
       <section className="mt-8">
-        <h2 className="mb-2 text-sm font-medium text-mute">今日记录 · {records.length} 条</h2>
+        <h2 className="mb-2 text-sm font-medium text-mute">今日新生 · {records.length} 条</h2>
         <ul className="flex flex-col gap-1.5">
           {records.length === 0 && (
             <li className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-mute">
-              今天还没有记录，去聊天页说点什么吧。
+              今天树上还没新东西，去树洞说点什么吧。
             </li>
           )}
           {records.map((r) => (
@@ -278,11 +272,12 @@ export function TodayClient({
               key={r.id}
               className="flex items-start gap-2 rounded-xl border border-border bg-panel p-3 text-sm"
             >
-              <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] ${typeColor[r.type]}`}>
-                {typeLabel[r.type]}
-              </span>
+              <TypeIcon type={r.type} className="mt-0.5 h-5 w-5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <div className="text-ink">{r.content}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-mute">{typeLabel[r.type]}</span>
+                </div>
+                <div className="mt-0.5 text-ink">{r.content}</div>
                 <div className="mt-0.5 text-xs text-mute">
                   {new Date(r.createdAt).toLocaleTimeString("zh-CN", {
                     hour: "2-digit",

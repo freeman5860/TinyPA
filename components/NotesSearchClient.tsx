@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { TypeIcon } from "@/components/tree/TypeIcon";
 
 type Hit = {
   id: string;
@@ -60,8 +61,8 @@ export function NotesSearchClient() {
       style={{ height: "calc(100dvh - 56px - env(safe-area-inset-bottom))" }}
     >
       <header className="shrink-0 border-b border-border px-4 py-3">
-        <h1 className="text-lg font-semibold">搜索</h1>
-        <p className="text-xs text-mute">搜得到你以前说过的事，按词也按含义。</p>
+        <h1 className="text-lg font-semibold text-dusk-glow">叶林查找</h1>
+        <p className="text-xs text-mute">在树上的叶子里翻找你说过的事，按词也按含义。</p>
       </header>
 
       <div className="shrink-0 border-b border-border bg-panel/60 px-4 py-3">
@@ -80,7 +81,7 @@ export function NotesSearchClient() {
         <div className="mx-auto flex max-w-xl flex-col gap-2">
           {hits === null && (
             <div className="mt-16 text-center text-sm text-mute">
-              输点什么看看。
+              输点什么，叶林会替你翻一翻。
               <br />
               关键字 + 语义一起搜。
             </div>
@@ -93,7 +94,7 @@ export function NotesSearchClient() {
           )}
           {hits !== null && hits.length === 0 && !loading && !err && (
             <div className="mt-16 text-center text-sm text-mute">
-              没找到相关 note。
+              叶林里没找到相关的叶子。
             </div>
           )}
           {hits?.map((h) => (
@@ -101,33 +102,36 @@ export function NotesSearchClient() {
               key={h.id}
               className="flex items-start gap-2 rounded-xl border border-border bg-panel/60 px-3 py-2.5 text-sm"
             >
-              <span
-                className={
-                  "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] " +
-                  (h.matchedBy === "keyword"
-                    ? "bg-accent/15 text-accent"
-                    : "bg-emerald-500/15 text-emerald-300")
-                }
-                title={
-                  h.matchedBy === "keyword"
-                    ? "关键字命中"
-                    : `语义相似 ${h.score.toFixed(2)}`
-                }
-              >
-                {h.matchedBy === "keyword" ? "关键字" : "语义"}
-              </span>
+              <TypeIcon type="note" className="mt-0.5 h-5 w-5 shrink-0" />
               <div className="flex-1 text-ink">
                 <Highlight text={h.content} q={q.trim()} />
-                <div className="mt-1 text-[11px] text-mute">
-                  {new Date(h.createdAt).toLocaleString("zh-CN", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                <div className="mt-1 flex items-center gap-2 text-[11px] text-mute">
+                  <span
+                    className={
+                      "rounded px-1 py-0.5 " +
+                      (h.matchedBy === "keyword"
+                        ? "bg-dusk-glow/15 text-dusk-glow"
+                        : "bg-emerald-500/15 text-emerald-300")
+                    }
+                    title={
+                      h.matchedBy === "keyword"
+                        ? "关键字命中"
+                        : `语义相似 ${h.score.toFixed(2)}`
+                    }
+                  >
+                    {h.matchedBy === "keyword" ? "关键字" : "语义"}
+                  </span>
+                  <span>
+                    {new Date(h.createdAt).toLocaleString("zh-CN", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
                   {h.tags.length > 0 && (
-                    <span className="ml-2">
+                    <span>
                       {h.tags.map((t) => `#${t}`).join(" ")}
                     </span>
                   )}

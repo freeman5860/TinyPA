@@ -26,10 +26,10 @@ export default async function ReviewDetail({
     <div className="mx-auto max-w-xl px-4 py-4">
       <header className="mb-4 flex items-center justify-between">
         <div>
-          <Link href="/review" className="text-sm text-mute hover:text-ink">
-            ← 复盘列表
+          <Link href="/review" className="text-sm text-mute hover:text-dusk-glow">
+            ← 生长志
           </Link>
-          <h1 className="mt-1 text-xl font-semibold">{row.date}</h1>
+          <h1 className="mt-1 text-xl font-semibold text-dusk-glow">{row.date}</h1>
         </div>
       </header>
       <article className="prose prose-invert max-w-none rounded-xl border border-border bg-panel p-5 text-[15px] leading-relaxed">
