@@ -1,6 +1,6 @@
 import { db, messages, items, digests, users } from "@/lib/db";
 import { and, eq, gte, lte, isNull, or, asc } from "drizzle-orm";
-import { getLLM } from "@/lib/llm/gemma";
+import { getLLM } from "@/lib/llm";
 import { dayRangeInTz, todayIsoDate } from "@/lib/time";
 
 export async function generateDigestForUser(userId: string, when: Date = new Date()) {

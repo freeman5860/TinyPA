@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 
 const MODEL_PRESETS = [
-  "google/gemma-4-31b-it",
-  "meta/llama-3.1-8b-instruct",
-  "meta/llama-3.3-70b-instruct",
-  "nvidia/nv-embedqa-e5-v5",
+  "gemini-flash-latest",
+  "gemini-2.5-flash",
+  "gemini-2.5-pro",
+  "gemini-3-flash-preview",
 ];
 
 const USER_PROMPT_EXAMPLES = [
@@ -126,7 +126,7 @@ export function LlmTestClient({
             value={model}
             onChange={(e) => setModel(e.target.value)}
             className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-[14px] outline-none focus:border-accent"
-            placeholder="google/gemma-4-31b-it"
+            placeholder="gemini-flash-latest"
           />
           <div className="mt-1 flex flex-wrap gap-1">
             {MODEL_PRESETS.map((m) => (

@@ -36,9 +36,9 @@ export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const url = new URL(req.url);
-  const model = url.searchParams.get("model") ?? "meta/llama-3.1-8b-instruct";
-  const baseURL = process.env.LLM_BASE_URL ?? "https://integrate.api.nvidia.com/v1";
-  const apiKey = process.env.LLM_API_KEY || process.env.NVIDIA_API_KEY;
+  const model = url.searchParams.get("model") ?? "gemini-flash-latest";
+  const baseURL = process.env.LLM_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta/openai/";
+  const apiKey = process.env.LLM_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "no_api_key" }, { status: 500 });
 
   const client = new OpenAI({
@@ -142,8 +142,8 @@ export async function POST(req: NextRequest) {
     2
   );
 
-  const baseURL = process.env.LLM_BASE_URL ?? "https://integrate.api.nvidia.com/v1";
-  const apiKey = process.env.LLM_API_KEY || process.env.NVIDIA_API_KEY;
+  const baseURL = process.env.LLM_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta/openai/";
+  const apiKey = process.env.LLM_API_KEY;
   if (!apiKey)
     return NextResponse.json({ error: "no_api_key" }, { status: 500 });
 

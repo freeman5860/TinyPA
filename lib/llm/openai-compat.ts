@@ -17,8 +17,9 @@ import { NdjsonExtractParser, parseDigestOutput } from "./ndjson";
 
 // Force IPv4 + bypass Next.js's fetch wrapper. Two things going wrong
 // on Vercel lambdas:
-//   1. Node prefers IPv6; the IPv6 path to NIM is stalled/blackholed,
-//      so the first connect() hangs 30-60s before falling back to v4.
+//   1. Node prefers IPv6; the IPv6 path to some upstream LLM hosts is
+//      stalled/blackholed, so the first connect() hangs 30-60s before
+//      falling back to v4.
 //   2. Next.js instruments the global fetch, so setGlobalDispatcher
 //      doesn't reach the OpenAI SDK's actual HTTP calls.
 // Fix both by (a) hinting the DNS resolver to prefer v4, and (b)
@@ -42,16 +43,16 @@ const llmFetch: typeof fetch = (input, init) =>
     { ...(init as Parameters<typeof undiciFetch>[1]), dispatcher: llmAgent }
   ) as unknown as Promise<Response>;
 
-const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "meta/llama-3.3-70b-instruct";
-const DIGEST_MODEL = process.env.LLM_DIGEST_MODEL ?? "meta/llama-3.3-70b-instruct";
-const LLM_BASE_URL = process.env.LLM_BASE_URL ?? "https://integrate.api.nvidia.com/v1";
+const EXTRACT_MODEL = process.env.LLM_EXTRACT_MODEL ?? "gemini-flash-latest";
+const DIGEST_MODEL = process.env.LLM_DIGEST_MODEL ?? "gemini-flash-latest";
+const LLM_BASE_URL = process.env.LLM_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta/openai/";
 const EXTRACT_STREAM = (process.env.LLM_EXTRACT_STREAM ?? "true").toLowerCase() !== "false";
 const EXTRACT_MAX_TOKENS = Number(process.env.LLM_EXTRACT_MAX_TOKENS ?? 1024);
 const DIGEST_MAX_TOKENS = Number(process.env.LLM_DIGEST_MAX_TOKENS ?? 1024);
 
 function makeClient() {
-  const apiKey = process.env.LLM_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("LLM_API_KEY (or NVIDIA_API_KEY / OPENAI_API_KEY) is not set");
+  const apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("LLM_API_KEY (or OPENAI_API_KEY) is not set");
   return new OpenAI({
     apiKey,
     baseURL: LLM_BASE_URL,

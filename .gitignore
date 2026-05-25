@@ -8,6 +8,5 @@ node_modules
 next-env.d.ts
 .drizzle
 tsconfig.tsbuildinfo
-test-nim.mjs
 .env*.local
 .playwright-mcp/

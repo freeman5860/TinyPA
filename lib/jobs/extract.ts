@@ -1,5 +1,5 @@
 import { db, messages, items } from "@/lib/db";
-import { getLLM } from "@/lib/llm/gemma";
+import { getLLM } from "@/lib/llm";
 import { getEmbed } from "@/lib/llm/embedding";
 import { localNowForLLM } from "@/lib/time";
 import { eq } from "drizzle-orm";

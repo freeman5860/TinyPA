@@ -5,7 +5,7 @@
 TinyPA 是一个 PWA 形态的私人助理：
 
 - **聊天式输入** — 打开就像微信，不用分类、不用标签。
-- **AI 自动整理** — 后台用 Gemma 4 把每条消息拆成待办 / 笔记 / 心情 / 待跟进。
+- **AI 自动整理** — 后台用 Gemini 把每条消息拆成待办 / 笔记 / 心情 / 待跟进。
 - **每晚复盘** — 22:00 自动生成当日总结和明日 top 3。
 - **次日早报** — 08:00 邮件推送昨日复盘 + 今日待办。
 
@@ -14,7 +14,7 @@ TinyPA 是一个 PWA 形态的私人助理：
 - Next.js 15 (App Router) + React 19 + TypeScript
 - Postgres + Drizzle ORM
 - Auth.js v5（邮箱 magic link）
-- Gemma 4 via NVIDIA NIM（OpenAI 兼容）
+- Gemini（chat 经 OpenAI 兼容层；embedding 走原生 API）
 - Resend 发邮件
 - Tailwind CSS · PWA (manifest + service worker)
 
@@ -30,14 +30,14 @@ pnpm install
 
 ```bash
 cp .env.example .env.local
-# 然后填好 DATABASE_URL / AUTH_SECRET / RESEND_API_KEY / NVIDIA_API_KEY / CRON_SECRET
+# 然后填好 DATABASE_URL / AUTH_SECRET / RESEND_API_KEY / LLM_API_KEY / CRON_SECRET
 ```
 
 最低要准备：
 
 - **Postgres**：[Neon 免费档](https://neon.tech/) 或本地 `brew install postgresql` 都可
 - **Resend API Key**：[resend.com](https://resend.com) 注册一下，免费 3000 封/月
-- **NVIDIA API Key**：[build.nvidia.com](https://build.nvidia.com/google/gemma-4) 拿 Gemma 4 的 key
+- **Gemini API Key**：[ai.google.dev](https://ai.google.dev/) 拿一个，extract / digest / embedding 共用。免费档 15 RPM / 1500 RPD
 - `AUTH_SECRET`：`openssl rand -base64 32`
 - `CRON_SECRET`：`openssl rand -hex 32`
 
@@ -104,7 +104,7 @@ app/
   login/                 # 登录页
 lib/
   db/                    # Drizzle schema + client
-  llm/                   # Provider 抽象 + Gemma 实现 + prompts
+  llm/                   # Provider 抽象 + Gemini 实现 + prompts
   jobs/                  # extract / digest / morning
   push/email.ts          # Resend
   auth.ts                # Auth.js 配置

@@ -43,7 +43,7 @@ export default async function SettingsPage() {
         className="mt-3 block rounded-xl border border-border bg-panel/60 p-4 text-xs text-mute hover:border-accent/50"
       >
         <div className="mb-1 font-medium text-ink">LLM 测试工具 →</div>
-        直接在浏览器里发请求到 NIM，测连接、延迟、不同模型和 prompt 的输出差异。
+        直接在浏览器里发请求到 LLM，测连接、延迟、不同模型和 prompt 的输出差异。
       </Link>
 
       <AccountActions email={user?.email ?? ""} />

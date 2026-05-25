@@ -27,7 +27,7 @@ export default function PrivacyPage() {
           <li><b>Vercel</b>（美国）：托管服务和函数。</li>
           <li><b>Neon</b>（美国）：Postgres 数据库。</li>
           <li><b>Resend</b>（美国）：发送登录邮件和早报。</li>
-          <li><b>NVIDIA NIM / Anthropic</b>：调用 LLM 把你的消息拆成结构化条目。你发的消息文本会被传给这些服务，但仅用于一次性处理，不会被用来训练。</li>
+          <li><b>Google Gemini / Anthropic</b>：调用 LLM 把你的消息拆成结构化条目。你发的消息文本会被传给这些服务，但仅用于一次性处理，不会被用来训练。</li>
           <li><b>Upstash Redis</b>：存限流计数器，不存你发的消息内容。</li>
           <li><b>Sentry</b>：错误追踪。我们会主动清洗掉消息内容、邮箱、cookies 等敏感字段。</li>
           <li><b>Telegram</b>（可选）：只在你主动绑定时使用。</li>

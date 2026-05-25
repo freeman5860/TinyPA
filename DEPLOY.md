@@ -32,25 +32,26 @@
 
 ### 0.2 LLM Provider（必需）
 
-TinyPA 的 extract / digest 可以跑在任何 OpenAI 兼容的 API 上，或者跑在 Anthropic Claude 上。**embedding 固定用 NVIDIA**（1024 维，换别的要重跑 backfill 且改 schema 维度），所以 `NVIDIA_API_KEY` 永远要有。
+TinyPA 的 extract / digest / embedding 都默认走 Google Gemini。embedding 的向量空间是 1024 维，换 provider 要重跑 backfill 且改 schema 维度，所以多数情况下保持 Gemini 这一套最省心。
 
 挑一套用：
 
-#### 方案 A：NVIDIA NIM 跑 Llama 3.3 70B（默认，零成本起步）
+#### 方案 A：Gemini（默认，零成本起步）
 
-1. <https://build.nvidia.com> → 登录 → 右上 **Get API Key**
-2. 复制 `nvapi-xxx`，一个 key 同时覆盖 chat 和 embedding
+1. <https://ai.google.dev/> → 登录 → **Get API Key**
+2. 复制 `AIza...`，一个 key 同时覆盖 chat 和 embedding
 3. 对应 env：
    ```
-   NVIDIA_API_KEY=nvapi-xxx
+   LLM_API_KEY=AIza...
    # LLM_PROVIDER 默认 openai-compat，不用写
-   # LLM_BASE_URL 默认 https://integrate.api.nvidia.com/v1，不用写
-   # LLM_EXTRACT_MODEL / LLM_DIGEST_MODEL 默认 meta/llama-3.3-70b-instruct，不用写
+   # LLM_BASE_URL 默认 https://generativelanguage.googleapis.com/v1beta/openai/，不用写
+   # LLM_EXTRACT_MODEL / LLM_DIGEST_MODEL 默认 gemini-flash-latest，不用写
+   # LLM_EMBED_MODEL 默认 gemini-embedding-001，不用写
    ```
 
-> 新账号有免费额度，对个人项目够用；超出按 token 计费。
+> 免费档 15 RPM / 1500 RPD，对个人项目够用；上量升 Tier 1 按 token 计费。生产环境建议把 `gemini-flash-latest` 钉成具体版本号（如 `gemini-2.5-flash`），Google 会 hot-swap 底层模型。
 
-#### 方案 B：Anthropic Claude（想用原生 Claude、上限更高的路线）
+#### 方案 B：Anthropic Claude（chat 用 Claude，embedding 仍走 Gemini）
 
 1. <https://console.anthropic.com> → **API Keys** → **Create Key**
 2. 复制 `sk-ant-xxx`
@@ -60,22 +61,22 @@ TinyPA 的 extract / digest 可以跑在任何 OpenAI 兼容的 API 上，或者
    ANTHROPIC_API_KEY=sk-ant-xxx
    # LLM_EXTRACT_MODEL / LLM_DIGEST_MODEL 默认 claude-haiku-4-5，不用写
    # 想用更好的模型：LLM_DIGEST_MODEL=claude-sonnet-4-6
-   NVIDIA_API_KEY=nvapi-xxx   # 仍然要留，embedding 用
+   LLM_API_KEY=AIza...   # 仍然要留，embedding 用
    ```
 
 > Anthropic provider 自动对 system prompt 打 prompt cache，5 分钟内重复调用 input tokens 便宜 ~10 倍。
 
 #### 方案 C：别的 OpenAI 兼容 API（OpenAI / OpenRouter / Together / Groq / SiliconFlow 等）
 
-换 baseURL + key + model 三条 env：
+换 baseURL + key + model 三条 env，embedding 仍然单独走 Gemini：
 
 ```
 LLM_PROVIDER=openai-compat          # 或者不填，默认就是这个
-LLM_API_KEY=sk-xxx                  # 任何 OpenAI 兼容 key
+LLM_API_KEY=sk-xxx                  # chat 用的 OpenAI 兼容 key
 LLM_BASE_URL=https://api.openai.com/v1   # 换对应服务商的 URL
 LLM_EXTRACT_MODEL=gpt-4o-mini
 LLM_DIGEST_MODEL=gpt-4o-mini
-NVIDIA_API_KEY=nvapi-xxx             # embedding 仍然用
+LLM_EMBED_API_KEY=AIza...           # embedding 单独的 Gemini key（不写则复用 LLM_API_KEY，多数情况会失败）
 ```
 
 ### 0.3 本地生成两串随机密钥
@@ -158,7 +159,7 @@ git push                  # 如果有漏推
    | `AUTH_SECRET` | 0.3 生成的 base64 |
    | `RESEND_API_KEY` | `re_xxx` |
    | `MAIL_FROM` | `TinyPA <onboarding@resend.dev>` 或自有域 |
-   | `NVIDIA_API_KEY` | `nvapi-xxx`（embedding 必需） |
+   | `LLM_API_KEY` | `AIza...`（Gemini，extract / digest / embedding 共用） |
    | `CRON_SECRET` | 0.3 生成的 hex |
 
    **LLM provider 按 0.2 挑的那套加 env**（方案 A 什么都不用加；方案 B/C 按那一节的说明加 `LLM_PROVIDER` / `ANTHROPIC_API_KEY` / `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_*_MODEL`）。
@@ -328,7 +329,7 @@ DB 好了，补两个运行时必需的 URL 型变量。
 - 一个 `note` 卡：梦见小时候的院子
 - 一个 `mood` 卡：有点累
 
-> 如果只看到"已记录。"：这是 fallback，说明 LLM 返回空/不合法。去 Vercel **Logs** 搜 `[gemma.extract] done`，看 `contentPreview` 字段的前几百字是不是合法 NDJSON。
+> 如果只看到"已记录。"：这是 fallback，说明 LLM 返回空/不合法。去 Vercel **Logs** 搜 `[openai-compat.extract] done`，看 `contentPreview` 字段的前几百字是不是合法 NDJSON。
 
 ### 8.3 今日 tab
 
@@ -417,9 +418,9 @@ Vercel 会自动加 `Authorization: Bearer $CRON_SECRET` 头（前提是同名�
 | Neon Dashboard 里 `Create Project` 是灰的 | 正常。通过 Vercel 集成创建的账号必须走 Vercel Storage tab |
 | 邮件登录链接点了跳 `localhost:3000` | 第 7 步 `AUTH_URL` 没填或 Redeploy 没做 |
 | 邮件一直收不到 | Resend Dashboard → Emails 看有没有记录；沙盒地址只能发到注册邮箱本身；检查垃圾箱 |
-| 聊天每条都只显示"已记录。" | LLM 返回空/不合法。看 Vercel Logs `[gemma.extract] done` 的 `contentPreview` 判断是模型没吐还是解析不中 |
-| 今日 tab 出现你没说过的条目 | prompt 里的示例文本被模型当成内容泄漏了。确认 `lib/llm/prompts.ts` 已移除 few-shot 示例，并用 `gemma-4-31b-it` 做 extract |
-| 搜索 tab 语义搜索无命中 | Vercel Logs 搜 `[embed]`，大概率是 `NVIDIA_API_KEY` 格式错（应以 `nvapi-` 开头）；也可能是 HNSW 索引没建，但那只影响速度不影响结果 |
+| 聊天每条都只显示"已记录。" | LLM 返回空/不合法。看 Vercel Logs `[openai-compat.extract] done` 的 `contentPreview` 判断是模型没吐还是解析不中 |
+| 今日 tab 出现你没说过的条目 | prompt 里的示例文本被模型当成内容泄漏了。确认 `lib/llm/prompts.ts` 已移除 few-shot 示例，并确认 `LLM_EXTRACT_MODEL` 是个 instruct/chat 模型而非 base |
+| 搜索 tab 语义搜索无命中 | Vercel Logs 搜 `[embed]`，大概率是 `LLM_API_KEY`（embedding 复用）格式错（Google AI Studio key 应以 `AIza` 开头）；也可能是 HNSW 索引没建，但那只影响速度不影响结果 |
 | Cron 没跑 | Vercel → **Cron Jobs** tab 看记录；确认 `CRON_SECRET` 在环境变量里；刚部署要等到下一个调度时刻才首次触发，想立刻试就用 8.5 的 curl |
 | 设置页没看到"浏览器推送"按钮，或提示"未配置 VAPID_PUBLIC_KEY" | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` 没加；`NEXT_PUBLIC_` 前缀是打包期注入的，加完必须 **Redeploy** |
 | 浏览器订阅成功但测试推送收不到 | Vercel Logs 看 `[webpush]`；常见是 VAPID_SUBJECT 没带 `mailto:` 前缀、或公私钥配成两对不匹配的 |
